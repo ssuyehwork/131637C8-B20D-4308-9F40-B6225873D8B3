@@ -35,7 +35,7 @@ class MainWindow(QWidget):
         print("[DEBUG] MainWindow 初始化完成")
 
     def _setup_ui(self):
-        self.setWindowTitle('快速笔记 - 管理面板')
+        self.setWindowTitle('数据管理')
         self.resize(1300, 700)
         self.setStyleSheet(STYLES['main_window'])
         
@@ -184,7 +184,7 @@ class MainWindow(QWidget):
         layout.setSpacing(10)
         
         header = QHBoxLayout()
-        title = QLabel('🏷️ 标签云')
+        title = QLabel('🏷️ 标签')
         title.setStyleSheet("font-size: 14px; font-weight: bold; color: #4a90e2;")
         header.addWidget(title)
         
