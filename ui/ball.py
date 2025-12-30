@@ -24,6 +24,7 @@ class FloatingBall(QWidget):
         self.dragging = False
         self.is_hovering = False 
         self.offset = QPoint()
+        self.hue = 0  # 色相 (0-359)
 
         # --- 动能参数 ---
         self.angle_outer = 0  # 外环角度
@@ -40,11 +41,14 @@ class FloatingBall(QWidget):
 
     def _update_physics(self):
         """物理帧更新"""
-        # 1. 目标速度控制 (惯性平滑处理)
+        # 1. 色相更新 (彩虹呼吸效果)
+        self.hue = (self.hue + 0.5) % 360
+
+        # 2. 目标速度控制 (惯性平滑处理)
         target_speed = 15.0 if self.is_hovering else 2.0
         self.current_speed += (target_speed - self.current_speed) * 0.1
         
-        # 2. 更新角度
+        # 3. 更新角度
         self.angle_outer += self.current_speed
         self.angle_inner -= self.current_speed * 1.5 # 内环反向旋转
         
@@ -52,7 +56,7 @@ class FloatingBall(QWidget):
         self.angle_outer %= 360
         self.angle_inner %= 360
 
-        # 3. 粒子更新
+        # 4. 粒子更新
         if self.is_hovering:
             self._update_particles()
             
@@ -86,10 +90,10 @@ class FloatingBall(QWidget):
             glow_color = QColor(255, 69, 0, 150)  # Orange Glow
             bg_color = QColor(20, 0, 0, 200)      
         else:
-            # 常态: 青/蓝
-            main_color = QColor(0, 243, 255)      # Cyan
-            glow_color = QColor(0, 120, 255, 100) # Blue Glow
-            bg_color = QColor(0, 15, 30, 180)     
+            # 常态: 彩虹呼吸
+            main_color = QColor.fromHsvF(self.hue / 360.0, 0.9, 1.0)
+            glow_color = QColor.fromHsvF(self.hue / 360.0, 0.7, 1.0, 0.4) # Alpha=100/255
+            bg_color = QColor(0, 15, 30, 180)
 
         # 1. 绘制核心背景
         p.setPen(Qt.NoPen)
