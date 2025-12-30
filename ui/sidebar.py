@@ -8,6 +8,7 @@ from core.config import COLORS
 class Sidebar(QTreeWidget):
     filter_changed = pyqtSignal(str, object)
     data_changed = pyqtSignal()
+    new_data_requested = pyqtSignal(int)
 
     def __init__(self, db, parent=None):
         super().__init__(parent)
@@ -199,8 +200,9 @@ class Sidebar(QTreeWidget):
             raw_text = item.text(0)
             current_name = ' '.join(raw_text.split(' ')[:-1]).strip()[2:]
 
-            menu.addAction('➕ 组', self._new_group)
+            menu.addAction('➕ 数据', lambda: self._request_new_data(cat_id))
             menu.addSeparator()
+            menu.addAction('➕ 组', self._new_group)
             menu.addAction('➕ 区', lambda: self._new_zone(cat_id))
             menu.addAction('✏️ 重命名', lambda: self._rename_category(cat_id, current_name))
             menu.addAction('🗑️ 删除', lambda: self._del_category(cat_id))
@@ -209,14 +211,17 @@ class Sidebar(QTreeWidget):
         # Case 3: 点击系统分类，不显示菜单
         # (do nothing)
 
+    def _request_new_data(self, cat_id):
+        self.new_data_requested.emit(cat_id)
+
     def _new_group(self):
-        text, ok = QInputDialog.getText(self, '组', '组名称:')
+        text, ok = QInputDialog.getText(self, '新建组', '组名称:')
         if ok and text:
             self.db.add_category(text, parent_id=None)
             self.refresh()
             
     def _new_zone(self, parent_id):
-        text, ok = QInputDialog.getText(self, '区', '区名称:')
+        text, ok = QInputDialog.getText(self, '新建区', '区名称:')
         if ok and text:
             self.db.add_category(text, parent_id=parent_id)
             self.refresh()

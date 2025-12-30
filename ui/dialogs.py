@@ -93,12 +93,13 @@ class BaseDialog(QDialog):
 
 # === 编辑窗口 (支持左右拉伸 & 深色滚动条 & 阴影) ===
 class EditDialog(BaseDialog):
-    def __init__(self, db, idea_id=None, parent=None):
+    def __init__(self, db, idea_id=None, parent=None, category_id_for_new=None):
         super().__init__(parent)
         self.db = db
         self.idea_id = idea_id
         self.selected_color = COLORS['primary']
-        self.category_id = None
+        self.category_id = None # 用于加载已存在的数据
+        self.category_id_for_new = category_id_for_new # 用于新建
         
         self._init_ui()
         if idea_id: self._load_data()
@@ -168,7 +169,7 @@ class EditDialog(BaseDialog):
         self.save_btn.setCursor(Qt.PointingHandCursor)
         self.save_btn.setFixedHeight(50)
         self.save_btn.setStyleSheet(STYLES['btn_primary'])
-        self.save_btn.clicked.connect(self._save)
+        self.save_btn.clicked.connect(self._save_data)
         left_panel.addWidget(self.save_btn)
         
         # ================= 右侧容器 =================
@@ -200,7 +201,7 @@ class EditDialog(BaseDialog):
         
         main_layout.addWidget(self.splitter)
         
-        QShortcut(QKeySequence("Ctrl+S"), self, self._save)
+        QShortcut(QKeySequence("Ctrl+S"), self, self._save_data)
         QShortcut(QKeySequence("Escape"), self, self.reject)
         self._set_color(self.selected_color)
 
@@ -240,18 +241,23 @@ class EditDialog(BaseDialog):
             self.category_id = d[8]
             self.tags_inp.setText(','.join(self.db.get_tags(self.idea_id)))
 
-    def _save(self):
+    def _save_data(self):
         title = self.title_inp.text().strip()
         if not title:
             self.title_inp.setPlaceholderText("⚠️ 标题不能为空!")
             self.title_inp.setFocus()
             return
-            
+
         tags = [t.strip() for t in self.tags_inp.text().split(',') if t.strip()]
-        args = (title, self.content_inp.toPlainText(), self.selected_color, tags, self.category_id)
+        content = self.content_inp.toPlainText()
+        color = self.selected_color
         
-        if self.idea_id: self.db.update_idea(self.idea_id, *args)
-        else: self.db.add_idea(*args)
+        if self.idea_id:
+            # 更新模式
+            self.db.update_idea(self.idea_id, title, content, color, tags, self.category_id)
+        else:
+            # 新建模式
+            self.db.add_idea(title, content, color, tags, category_id=self.category_id_for_new)
         
         self.accept()
 

@@ -65,17 +65,17 @@ class DatabaseManager:
         self.conn.commit()
 
     # --- 核心 CRUD ---
-    def add_idea(self, title, content, color, tags, cat_id):
+    def add_idea(self, title, content, color, tags, category_id=None):
         c = self.conn.cursor()
-        c.execute('INSERT INTO ideas (title, content, color, category_id) VALUES (?,?,?,?)', (title, content, color, cat_id))
+        c.execute('INSERT INTO ideas (title, content, color, category_id) VALUES (?,?,?,?)', (title, content, color, category_id))
         iid = c.lastrowid
         self._update_tags(iid, tags)
         self.conn.commit()
         return iid  # 返回新建的ID
 
-    def update_idea(self, iid, title, content, color, tags, cat_id):
+    def update_idea(self, iid, title, content, color, tags, category_id=None):
         c = self.conn.cursor()
-        c.execute('UPDATE ideas SET title=?, content=?, color=?, category_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', (title, content, color, cat_id, iid))
+        c.execute('UPDATE ideas SET title=?, content=?, color=?, category_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', (title, content, color, category_id, iid))
         self._update_tags(iid, tags)
         self.conn.commit()
 

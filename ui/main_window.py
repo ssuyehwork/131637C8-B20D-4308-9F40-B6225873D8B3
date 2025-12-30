@@ -17,6 +17,15 @@ from ui.dialogs import EditDialog
 from ui.ball import FloatingBall
 from ui.advanced_tag_selector import AdvancedTagSelector
 
+class ContentContainer(QWidget):
+    cleared = pyqtSignal()
+
+    def mousePressEvent(self, e):
+        # 当点击事件发生在自身，而不是子控件(卡片)上时，发射信号
+        if self.childAt(e.pos()) is None:
+            self.cleared.emit()
+        super().mousePressEvent(e)
+
 class MainWindow(QWidget):
     closing = pyqtSignal()
     
@@ -28,7 +37,7 @@ class MainWindow(QWidget):
         print("[DEBUG] ========== MainWindow 初始化开始 ==========")
         self.db = DatabaseManager()
         self.curr_filter = ('all', None)
-        self.selected_id = None
+        self.selected_ids = set()
         self._drag_pos = None
         self.current_tag_filter = None
         
@@ -83,6 +92,7 @@ class MainWindow(QWidget):
         self.sidebar = Sidebar(self.db)
         self.sidebar.filter_changed.connect(self._set_filter)
         self.sidebar.data_changed.connect(self._load_data)
+        self.sidebar.new_data_requested.connect(self._on_new_data_in_category_requested)
         splitter.addWidget(self.sidebar)
         
         middle_panel = self._create_middle_panel()
@@ -101,8 +111,31 @@ class MainWindow(QWidget):
         QShortcut(QKeySequence("Ctrl+T"), self, self._handle_extract_key)
         QShortcut(QKeySequence("Ctrl+N"), self, self.new_idea)
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
+        QShortcut(QKeySequence("Ctrl+A"), self, self._select_all)
+        QShortcut(QKeySequence("Ctrl+F"), self, self._do_fav)
+        QShortcut(QKeySequence("Ctrl+P"), self, self._do_pin)
         QShortcut(QKeySequence("Delete"), self, self._handle_del_key)
         QShortcut(QKeySequence("Escape"), self, self._clear_tag_filter)
+
+    def _select_all(self):
+        """全选当前视图中的所有卡片"""
+        if not self.cards: return
+        # 如果已经全选，则取消全选
+        if len(self.selected_ids) == len(self.cards):
+            self.selected_ids.clear()
+        else:
+            self.selected_ids = set(self.cards.keys())
+        
+        self._update_all_card_selections()
+        self._update_ui_state()
+
+    def _clear_all_selections(self):
+        """清除所有选中项"""
+        if not self.selected_ids:
+            return
+        self.selected_ids.clear()
+        self._update_all_card_selections()
+        self._update_ui_state()
 
     def _create_titlebar(self):
         titlebar = QWidget()
@@ -181,10 +214,15 @@ class MainWindow(QWidget):
         act_bar.addStretch()
         
         self.btns = {}
+        tooltips = {
+            'pin': '置顶 (Ctrl+P)', 'fav': '收藏 (Ctrl+F)', 'edit': '编辑',
+            'del': '删除 (Delete)', 'rest': '恢复', 'dest': '永久删除'
+        }
         for k, i, f in [('pin','📌',self._do_pin), ('fav','⭐',self._do_fav), ('edit','✏️',self._do_edit),
                         ('del','🗑️',self._do_del), ('rest','♻️',self._do_restore), ('dest','❌',self._do_destroy)]:
             b = QPushButton(i)
             b.setStyleSheet(STYLES['btn_icon'])
+            b.setToolTip(tooltips.get(k, ''))
             b.clicked.connect(f)
             b.setEnabled(False)
             act_bar.addWidget(b)
@@ -194,7 +232,8 @@ class MainWindow(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("border:none")
-        self.list_container = QWidget()
+        self.list_container = ContentContainer()
+        self.list_container.cleared.connect(self._clear_all_selections)
         self.list_layout = QVBoxLayout(self.list_container)
         self.list_layout.setAlignment(Qt.AlignTop)
         self.list_layout.setSpacing(10)
@@ -346,48 +385,51 @@ class MainWindow(QWidget):
             e.accept()
 
     def mouseMoveEvent(self, e):
-        # 仅当左键按下时，才处理拖动或调整大小的逻辑
+        if e.buttons() == Qt.NoButton:
+            # 没有按下按钮，只是移动鼠标
+            areas = self._get_resize_area(e.pos())
+            self._set_cursor_for_resize(areas)
+            e.accept()
+            return
+        
         if e.buttons() == Qt.LeftButton:
             if self._resize_area:
                 # 调整窗口大小
                 delta = e.globalPos() - self._resize_start_pos
                 rect = self._resize_start_geometry
-                min_width, min_height = 600, 400
+                
+                min_width = 600
+                min_height = 400
+                
                 new_rect = rect.adjusted(0, 0, 0, 0)
-
+                
                 if 'left' in self._resize_area:
                     new_left = rect.left() + delta.x()
-                    if rect.right() - new_left >= min_width: new_rect.setLeft(new_left)
+                    if rect.right() - new_left >= min_width:
+                        new_rect.setLeft(new_left)
+                
                 if 'right' in self._resize_area:
                     new_width = rect.width() + delta.x()
-                    if new_width >= min_width: new_rect.setWidth(new_width)
+                    if new_width >= min_width:
+                        new_rect.setWidth(new_width)
+                
                 if 'top' in self._resize_area:
                     new_top = rect.top() + delta.y()
-                    if rect.bottom() - new_top >= min_height: new_rect.setTop(new_top)
+                    if rect.bottom() - new_top >= min_height:
+                        new_rect.setTop(new_top)
+                
                 if 'bottom' in self._resize_area:
                     new_height = rect.height() + delta.y()
-                    if new_height >= min_height: new_rect.setHeight(new_height)
+                    if new_height >= min_height:
+                        new_rect.setHeight(new_height)
                 
                 self.setGeometry(new_rect)
                 e.accept()
-                return
-
+            
             elif self._drag_pos:
                 # 拖动窗口
                 self.move(e.globalPos() - self._drag_pos)
                 e.accept()
-                return
-
-        # 如果光标在子控件上（即内容区域），则不应显示调整大小的光标
-        if self.childAt(e.pos()):
-            self.setCursor(Qt.ArrowCursor)
-            e.accept()
-            return
-
-        # 否则，我们就在边框上，更新光标样式
-        areas = self._get_resize_area(e.pos())
-        self._set_cursor_for_resize(areas)
-        e.accept()
 
     def mouseReleaseEvent(self, e):
         self._drag_pos = None
@@ -440,7 +482,7 @@ class MainWindow(QWidget):
 
     def _set_filter(self, f_type, val):
         self.curr_filter = (f_type, val)
-        self.selected_id = None
+        self.selected_ids.clear()
         self.current_tag_filter = None
         self.tag_filter_label.hide()
         self.clear_tag_btn.hide()
@@ -479,9 +521,9 @@ class MainWindow(QWidget):
             
         for d in data_list:
             c = IdeaCard(d, self.db)
-            
-            c.clicked.connect(self._on_select)
-            print(f"[DEBUG] 卡片 ID={d[0]} clicked 信号连接完成")
+
+            c.selection_requested.connect(self._handle_selection_request)
+            print(f"[DEBUG] 卡片 ID={d[0]} selection_requested 信号连接完成")
             
             c.double_clicked.connect(self._extract_single)
             print(f"[DEBUG] 卡片 ID={d[0]} double_clicked 信号连接到 _extract_single")
@@ -496,8 +538,11 @@ class MainWindow(QWidget):
         self._update_ui_state()
 
     def _show_card_menu(self, idea_id, pos):
-        self.selected_id = idea_id
-        self._on_select(idea_id)
+        # 如果右键点击的项不在当前选择中，则强制只选择该项
+        if idea_id not in self.selected_ids:
+            self.selected_ids = {idea_id}
+            self._update_all_card_selections()
+            self._update_ui_state()
         
         data = self.db.get_idea(idea_id)
         if not data: return
@@ -530,35 +575,74 @@ class MainWindow(QWidget):
         if card: menu.exec_(card.mapToGlobal(pos))
 
     def _move_to_category(self, cat_id):
-        if self.selected_id:
-            self.db.move_category(self.selected_id, cat_id)
+        if self.selected_ids:
+            for iid in self.selected_ids:
+                self.db.move_category(iid, cat_id)
             self._refresh_all()
-            self._show_tooltip('✅ 已移动分类')
+            self._show_tooltip(f'✅ 已移动 {len(self.selected_ids)} 项')
 
-    def _on_select(self, iid):
-        print(f"[DEBUG] _on_select 被调用,idea_id={iid}")
-        self.selected_id = iid
-        for k, c in self.cards.items():
-            c.update_selection(k == iid)
+    def _handle_selection_request(self, iid, is_ctrl_pressed):
+        """处理卡片点击事件，更新选择集合"""
+        if not is_ctrl_pressed:
+            # 普通单击：如果已选中多项，则只选中当前项。如果只选中当前项，则取消选择。
+            if len(self.selected_ids) > 1 or iid not in self.selected_ids:
+                self.selected_ids.clear()
+                self.selected_ids.add(iid)
+            else:
+                self.selected_ids.clear()
+        else:
+            # Ctrl+单击：切换当前项的选中状态
+            if iid in self.selected_ids:
+                self.selected_ids.remove(iid)
+            else:
+                self.selected_ids.add(iid)
+        
+        self._update_all_card_selections()
         self._update_ui_state()
+
+    def _update_all_card_selections(self):
+        """遍历所有卡片，根据 self.selected_ids 更新其视觉状态"""
+        for iid, card in self.cards.items():
+            card.update_selection(iid in self.selected_ids)
 
     def _update_ui_state(self):
         in_trash = (self.curr_filter[0] == 'trash')
-        has_sel = (self.selected_id is not None)
-        
-        for k in ['pin', 'fav', 'edit', 'del']:
+        selection_count = len(self.selected_ids)
+        has_selection = selection_count > 0
+        is_single_selection = selection_count == 1
+
+        # 通用按钮可见性
+        for k in ['pin', 'fav', 'del']:
             self.btns[k].setVisible(not in_trash)
-            self.btns[k].setEnabled(has_sel)
-            
         for k in ['rest', 'dest']:
             self.btns[k].setVisible(in_trash)
-            self.btns[k].setEnabled(has_sel)
+
+        # “编辑”按钮：仅单选时可用
+        self.btns['edit'].setVisible(not in_trash)
+        self.btns['edit'].setEnabled(is_single_selection)
+
+        # 其他操作按钮：有选择时即可用
+        for k in ['pin', 'fav', 'del', 'rest', 'dest']:
+            self.btns[k].setEnabled(has_selection)
             
-        if has_sel and not in_trash:
-            d = self.db.get_idea(self.selected_id)
+        # 更新 pin 和 fav 按钮的图标（仅单选时有意义）
+        if is_single_selection and not in_trash:
+            idea_id = list(self.selected_ids)[0]
+            d = self.db.get_idea(idea_id)
             if d:
                 self.btns['pin'].setText('📍' if not d[4] else '📌')
                 self.btns['fav'].setText('☆' if not d[5] else '⭐')
+        else:
+            # 多选或无选择时，恢复默认图标
+            self.btns['pin'].setText('📌')
+            self.btns['fav'].setText('⭐')
+
+    def _on_new_data_in_category_requested(self, cat_id):
+        """响应侧边栏请求，在指定分类下创建新笔记"""
+        print(f"[DEBUG] 响应 new_data_requested 信号, cat_id={cat_id}")
+        dialog = EditDialog(self.db, category_id_for_new=cat_id, parent=self)
+        if dialog.exec_():
+            self._refresh_all()
 
     def _show_tooltip(self, msg, dur=2000):
         QToolTip.showText(QCursor.pos(), msg, self)
@@ -569,35 +653,42 @@ class MainWindow(QWidget):
         if EditDialog(self.db).exec_(): self._refresh_all()
 
     def _do_edit(self):
-        print(f"[DEBUG] ========== _do_edit 被调用 ========== selected_id={self.selected_id}")
-        if self.selected_id and EditDialog(self.db, self.selected_id).exec_(): self._refresh_all()
+        if len(self.selected_ids) == 1:
+            idea_id = list(self.selected_ids)[0]
+            print(f"[DEBUG] ========== _do_edit 被调用 ========== idea_id={idea_id}")
+            if EditDialog(self.db, idea_id).exec_(): self._refresh_all()
 
     def _do_pin(self):
-        if self.selected_id:
-            self.db.toggle_field(self.selected_id, 'is_pinned')
+        if self.selected_ids:
+            for iid in self.selected_ids:
+                self.db.toggle_field(iid, 'is_pinned')
             self._load_data()
 
     def _do_fav(self):
-        if self.selected_id:
-            self.db.toggle_field(self.selected_id, 'is_favorite')
+        if self.selected_ids:
+            for iid in self.selected_ids:
+                self.db.toggle_field(iid, 'is_favorite')
             self._refresh_all()
 
     def _do_del(self):
-        if self.selected_id:
-            self.db.set_deleted(self.selected_id, True)
-            self.selected_id = None
+        if self.selected_ids:
+            for iid in self.selected_ids:
+                self.db.set_deleted(iid, True)
+            self.selected_ids.clear()
             self._refresh_all()
 
     def _do_restore(self):
-        if self.selected_id:
-            self.db.set_deleted(self.selected_id, False)
-            self.selected_id = None
+        if self.selected_ids:
+            for iid in self.selected_ids:
+                self.db.set_deleted(iid, False)
+            self.selected_ids.clear()
             self._refresh_all()
 
     def _do_destroy(self):
-        if self.selected_id and QMessageBox.Yes == QMessageBox.warning(self, '⚠️ 警告', '确定永久删除?\n此操作不可恢复!', QMessageBox.Yes | QMessageBox.No):
-            self.db.delete_permanent(self.selected_id)
-            self.selected_id = None
+        if self.selected_ids and QMessageBox.Yes == QMessageBox.warning(self, '⚠️ 警告', f'确定永久删除选中的 {len(self.selected_ids)} 项?\n此操作不可恢复!', QMessageBox.Yes | QMessageBox.No):
+            for iid in self.selected_ids:
+                self.db.delete_permanent(iid)
+            self.selected_ids.clear()
             self._refresh_all()
 
     def _refresh_all(self):
@@ -651,8 +742,10 @@ class MainWindow(QWidget):
 
     def _handle_extract_key(self):
         """处理 Ctrl+T 快捷键,提取选中笔记的正文"""
-        if self.selected_id:
-            self._extract_single(self.selected_id)
+        if len(self.selected_ids) == 1:
+            self._extract_single(list(self.selected_ids)[0])
+        elif len(self.selected_ids) > 1:
+            self._show_tooltip('⚠️ 请选择一条笔记进行提取', 1500)
         else:
             self._show_tooltip('⚠️ 请先选择一条笔记', 1500)
 

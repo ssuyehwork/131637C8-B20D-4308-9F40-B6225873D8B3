@@ -7,7 +7,7 @@ from PyQt5.QtGui import QDrag
 from core.config import STYLES
 
 class IdeaCard(QFrame):
-    clicked = pyqtSignal(int)
+    selection_requested = pyqtSignal(int, bool)
     double_clicked = pyqtSignal(int)
 
     def __init__(self, data, db, parent=None):
@@ -185,8 +185,9 @@ class IdeaCard(QFrame):
         
     def mouseReleaseEvent(self, e):
         if self._is_potential_click and e.button() == Qt.LeftButton:
-            self.clicked.emit(self.id)
-        
+            is_ctrl_pressed = QApplication.keyboardModifiers() == Qt.ControlModifier
+            self.selection_requested.emit(self.id, is_ctrl_pressed)
+
         self._drag_start_pos = None
         self._is_potential_click = False
         super().mouseReleaseEvent(e)
