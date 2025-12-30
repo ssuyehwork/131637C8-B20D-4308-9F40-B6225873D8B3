@@ -378,7 +378,13 @@ class MainWindow(QWidget):
                 e.accept()
                 return
 
-        # 如果没有拖动或调整大小的操作（包括鼠标未按下时），则更新光标样式
+        # 如果光标在子控件上（即内容区域），则不应显示调整大小的光标
+        if self.childAt(e.pos()):
+            self.setCursor(Qt.ArrowCursor)
+            e.accept()
+            return
+
+        # 否则，我们就在边框上，更新光标样式
         areas = self._get_resize_area(e.pos())
         self._set_cursor_for_resize(areas)
         e.accept()
