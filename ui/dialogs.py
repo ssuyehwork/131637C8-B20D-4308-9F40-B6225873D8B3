@@ -2,8 +2,9 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QGridLayout, QHBoxLayout,
                               QLabel, QLineEdit, QTextEdit, QComboBox, QPushButton,
                               QProgressBar, QFrame, QApplication, QMessageBox, QShortcut,
-                             QSpacerItem, QSizePolicy, QSplitter, QWidget, QScrollBar)
-from PyQt5.QtGui import QKeySequence
+                             QSpacerItem, QSizePolicy, QSplitter, QWidget, QScrollBar,
+                             QGraphicsDropShadowEffect)
+from PyQt5.QtGui import QKeySequence, QColor
 from PyQt5.QtCore import Qt
 from core.config import STYLES, COLORS
 
@@ -54,10 +55,43 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
 class BaseDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        # 应用全局对话框样式并合并滚动条样式
-        self.setStyleSheet(STYLES['dialog'] + SCROLLBAR_STYLE)
+        # 设置窗口标志,支持透明背景
+        self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        
+        # 创建主容器
+        self._setup_container()
+    
+    def _setup_container(self):
+        """设置带阴影的主容器"""
+        # 外层布局,留出阴影空间
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(15, 15, 15, 15)
+        
+        # 内容容器
+        self.content_container = QWidget()
+        self.content_container.setObjectName("DialogContainer")
+        self.content_container.setStyleSheet(f"""
+            #DialogContainer {{
+                background-color: {COLORS['bg_dark']};
+                border-radius: 12px;
+            }}
+        """ + STYLES['dialog'] + SCROLLBAR_STYLE)
+        
+        outer_layout.addWidget(self.content_container)
+        
+        # 添加现代化阴影
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(30)
+        shadow.setXOffset(0)
+        shadow.setYOffset(6)
+        shadow.setColor(QColor(0, 0, 0, 120))
+        self.content_container.setGraphicsEffect(shadow)
+        
+        # 返回内容容器,子类可以在其中添加布局
+        return self.content_container
 
-# === 编辑窗口 (支持左右拉伸 & 深色滚动条) ===
+# === 编辑窗口 (支持左右拉伸 & 深色滚动条 & 阴影) ===
 class EditDialog(BaseDialog):
     def __init__(self, db, idea_id=None, parent=None):
         super().__init__(parent)
@@ -68,12 +102,15 @@ class EditDialog(BaseDialog):
         
         self._init_ui()
         if idea_id: self._load_data()
+        
+        # 使对话框可拖动
+        self._drag_pos = None
 
     def _init_ui(self):
         self.setWindowTitle('✨ 记录灵感')
         self.resize(950, 650)
         
-        main_layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout(self.content_container)
         main_layout.setContentsMargins(10, 10, 10, 10)
         
         self.splitter = QSplitter(Qt.Horizontal)
@@ -164,7 +201,24 @@ class EditDialog(BaseDialog):
         main_layout.addWidget(self.splitter)
         
         QShortcut(QKeySequence("Ctrl+S"), self, self._save)
+        QShortcut(QKeySequence("Escape"), self, self.reject)
         self._set_color(self.selected_color)
+
+    def mousePressEvent(self, e):
+        """使对话框可拖动"""
+        if e.button() == Qt.LeftButton and e.pos().y() < 40:
+            self._drag_pos = e.globalPos() - self.frameGeometry().topLeft()
+            e.accept()
+
+    def mouseMoveEvent(self, e):
+        """拖动对话框"""
+        if e.buttons() == Qt.LeftButton and self._drag_pos:
+            self.move(e.globalPos() - self._drag_pos)
+            e.accept()
+
+    def mouseReleaseEvent(self, e):
+        """结束拖动"""
+        self._drag_pos = None
 
     def _set_color(self, color):
         self.selected_color = color
@@ -189,7 +243,7 @@ class EditDialog(BaseDialog):
     def _save(self):
         title = self.title_inp.text().strip()
         if not title:
-            self.title_inp.setPlaceholderText("⚠️ 标题不能为空！")
+            self.title_inp.setPlaceholderText("⚠️ 标题不能为空!")
             self.title_inp.setFocus()
             return
             
@@ -208,14 +262,14 @@ class StatsDialog(BaseDialog):
         self.setWindowTitle('📊 数据看板')
         self.resize(550, 450)
         
-        layout = QVBoxLayout(self)
+        layout = QVBoxLayout(self.content_container)
         layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(20)
         
         counts = db.get_counts()
         grid = QGridLayout()
         grid.setSpacing(15)
-        grid.addWidget(self._box("📝 总灵感", counts['all'], COLORS['primary']), 0, 0)
+        grid.addWidget(self._box("📚 总灵感", counts['all'], COLORS['primary']), 0, 0)
         grid.addWidget(self._box("📅 今日新增", counts['today'], COLORS['success']), 0, 1)
         grid.addWidget(self._box("⭐ 我的收藏", counts['favorite'], COLORS['warning']), 1, 0)
         grid.addWidget(self._box("🏷️ 待整理", counts['untagged'], COLORS['danger']), 1, 1)
@@ -284,7 +338,7 @@ class ExtractDialog(BaseDialog):
         self.setWindowTitle('📋 提取内容')
         self.resize(700, 600)
         
-        layout = QVBoxLayout(self)
+        layout = QVBoxLayout(self.content_container)
         layout.setContentsMargins(20, 20, 20, 20)
         
         self.txt = QTextEdit()

@@ -3,9 +3,10 @@
 import sys
 from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QSplitter, QLineEdit,
                                QPushButton, QLabel, QScrollArea, QShortcut, QMessageBox,
-                               QApplication, QToolTip, QMenu, QFrame, QTextEdit, QDialog)
+                               QApplication, QToolTip, QMenu, QFrame, QTextEdit, QDialog,
+                               QGraphicsDropShadowEffect)
 from PyQt5.QtCore import Qt, QTimer, QPoint, pyqtSignal
-from PyQt5.QtGui import QKeySequence, QCursor
+from PyQt5.QtGui import QKeySequence, QCursor, QColor
 from core.config import STYLES, COLORS
 from core.settings import load_setting
 from data.db_manager import DatabaseManager
@@ -18,6 +19,9 @@ from ui.advanced_tag_selector import AdvancedTagSelector
 
 class MainWindow(QWidget):
     closing = pyqtSignal()
+    
+    # 调整大小的边距
+    RESIZE_MARGIN = 8
 
     def __init__(self):
         super().__init__()
@@ -28,7 +32,15 @@ class MainWindow(QWidget):
         self._drag_pos = None
         self.current_tag_filter = None
         
-        self.setWindowFlags(Qt.FramelessWindowHint)
+        # 调整大小相关变量
+        self._resize_area = None
+        self._resize_start_pos = None
+        self._resize_start_geometry = None
+        
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setMouseTracking(True)
+        
         self._setup_ui()
         self._load_data()
         
@@ -37,9 +49,26 @@ class MainWindow(QWidget):
     def _setup_ui(self):
         self.setWindowTitle('数据管理')
         self.resize(1300, 700)
-        self.setStyleSheet(STYLES['main_window'])
         
-        outer_layout = QVBoxLayout(self)
+        # 主布局，留出阴影空间
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(12, 12, 12, 12)
+        
+        # 主容器
+        self.container = QWidget()
+        self.container.setObjectName("MainContainer")
+        self.container.setStyleSheet(STYLES['main_window'])
+        root_layout.addWidget(self.container)
+        
+        # 添加现代化阴影
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(25)
+        shadow.setXOffset(0)
+        shadow.setYOffset(4)
+        shadow.setColor(QColor(0, 0, 0, 100))
+        self.container.setGraphicsEffect(shadow)
+        
+        outer_layout = QVBoxLayout(self.container)
         outer_layout.setContentsMargins(0, 0, 0, 0)
         outer_layout.setSpacing(0)
         
@@ -78,7 +107,7 @@ class MainWindow(QWidget):
     def _create_titlebar(self):
         titlebar = QWidget()
         titlebar.setFixedHeight(40)
-        titlebar.setStyleSheet(f"QWidget {{ background-color: {COLORS['bg_mid']}; border-bottom: 1px solid {COLORS['bg_light']}; }}")
+        titlebar.setStyleSheet(f"QWidget {{ background-color: {COLORS['bg_mid']}; border-bottom: 1px solid {COLORS['bg_light']}; border-top-left-radius: 8px; border-top-right-radius: 8px; }}")
         
         layout = QHBoxLayout(titlebar)
         layout.setContentsMargins(15, 0, 10, 0)
@@ -261,21 +290,116 @@ class MainWindow(QWidget):
         self._load_data()
         self._refresh_tag_panel()
 
+    # ==================== 调整大小逻辑 ====================
+    def _get_resize_area(self, pos):
+        """检测鼠标是否在边缘调整区域"""
+        x, y = pos.x(), pos.y()
+        w, h = self.width(), self.height()
+        m = self.RESIZE_MARGIN
+        
+        areas = []
+        if x < m: areas.append('left')
+        elif x > w - m: areas.append('right')
+        if y < m: areas.append('top')
+        elif y > h - m: areas.append('bottom')
+        
+        return areas
+    
+    def _set_cursor_for_resize(self, areas):
+        """根据调整区域设置鼠标样式"""
+        if not areas:
+            self.setCursor(Qt.ArrowCursor)
+            return
+        
+        if 'left' in areas and 'top' in areas:
+            self.setCursor(Qt.SizeFDiagCursor)
+        elif 'right' in areas and 'bottom' in areas:
+            self.setCursor(Qt.SizeFDiagCursor)
+        elif 'left' in areas and 'bottom' in areas:
+            self.setCursor(Qt.SizeBDiagCursor)
+        elif 'right' in areas and 'top' in areas:
+            self.setCursor(Qt.SizeBDiagCursor)
+        elif 'left' in areas or 'right' in areas:
+            self.setCursor(Qt.SizeHorCursor)
+        elif 'top' in areas or 'bottom' in areas:
+            self.setCursor(Qt.SizeVerCursor)
+
     def mousePressEvent(self, e):
-        if e.button() == Qt.LeftButton and e.y() < 40:
-            self._drag_pos = e.globalPos() - self.frameGeometry().topLeft()
+        if e.button() == Qt.LeftButton:
+            # 检查是否在边缘调整区域
+            areas = self._get_resize_area(e.pos())
+            
+            if areas:
+                # 开始调整大小
+                self._resize_area = areas
+                self._resize_start_pos = e.globalPos()
+                self._resize_start_geometry = self.geometry()
+                self._drag_pos = None
+            elif e.y() < 40:
+                # 在标题栏，开始拖动
+                self._drag_pos = e.globalPos() - self.frameGeometry().topLeft()
+                self._resize_area = None
+            else:
+                self._drag_pos = None
+                self._resize_area = None
+            
             e.accept()
 
     def mouseMoveEvent(self, e):
-        if e.buttons() == Qt.LeftButton and self._drag_pos:
-            self.move(e.globalPos() - self._drag_pos)
+        if e.buttons() == Qt.NoButton:
+            # 没有按下按钮，只是移动鼠标
+            areas = self._get_resize_area(e.pos())
+            self._set_cursor_for_resize(areas)
             e.accept()
+            return
+        
+        if e.buttons() == Qt.LeftButton:
+            if self._resize_area:
+                # 调整窗口大小
+                delta = e.globalPos() - self._resize_start_pos
+                rect = self._resize_start_geometry
+                
+                min_width = 600
+                min_height = 400
+                
+                new_rect = rect.adjusted(0, 0, 0, 0)
+                
+                if 'left' in self._resize_area:
+                    new_left = rect.left() + delta.x()
+                    if rect.right() - new_left >= min_width:
+                        new_rect.setLeft(new_left)
+                
+                if 'right' in self._resize_area:
+                    new_width = rect.width() + delta.x()
+                    if new_width >= min_width:
+                        new_rect.setWidth(new_width)
+                
+                if 'top' in self._resize_area:
+                    new_top = rect.top() + delta.y()
+                    if rect.bottom() - new_top >= min_height:
+                        new_rect.setTop(new_top)
+                
+                if 'bottom' in self._resize_area:
+                    new_height = rect.height() + delta.y()
+                    if new_height >= min_height:
+                        new_rect.setHeight(new_height)
+                
+                self.setGeometry(new_rect)
+                e.accept()
+            
+            elif self._drag_pos:
+                # 拖动窗口
+                self.move(e.globalPos() - self._drag_pos)
+                e.accept()
 
     def mouseReleaseEvent(self, e):
         self._drag_pos = None
+        self._resize_area = None
+        self.setCursor(Qt.ArrowCursor)
 
     def mouseDoubleClickEvent(self, e):
-        if e.y() < 40: self._toggle_maximize()
+        if e.y() < 40: 
+            self._toggle_maximize()
 
     def _toggle_maximize(self):
         if self.isMaximized():
@@ -285,8 +409,10 @@ class MainWindow(QWidget):
             self.showMaximized()
             self.max_btn.setText('❐')
 
+    # ==================== 其余方法保持不变 ====================
+    
     def quick_add_idea(self, text):
-        """快速添加灵感（悬浮球拖拽触发）"""
+        """快速添加灵感(悬浮球拖拽触发)"""
         raw = text.strip()
         if not raw: return
         
@@ -295,7 +421,7 @@ class MainWindow(QWidget):
         if len(lines) > 1 or len(lines[0]) > 25: title += "..."
         
         idea_id = self.db.add_idea(title, raw, COLORS['primary'], [], None)
-        print(f"[DEBUG] 快速添加灵感成功，ID={idea_id}")
+        print(f"[DEBUG] 快速添加灵感成功,ID={idea_id}")
         
         self._show_tag_selector(idea_id)
         
@@ -303,7 +429,7 @@ class MainWindow(QWidget):
 
     def _show_tag_selector(self, idea_id):
         """显示标签选择浮窗"""
-        print(f"[DEBUG] 显示标签选择器，idea_id={idea_id}")
+        print(f"[DEBUG] 显示标签选择器,idea_id={idea_id}")
         
         tag_selector = AdvancedTagSelector(self.db, idea_id, self)
         tag_selector.tags_confirmed.connect(lambda tags: self._on_tags_confirmed(idea_id, tags))
@@ -311,7 +437,7 @@ class MainWindow(QWidget):
 
     def _on_tags_confirmed(self, idea_id, tags):
         """标签确认后的回调"""
-        print(f"[DEBUG] 标签已确认，idea_id={idea_id}, tags={tags}")
+        print(f"[DEBUG] 标签已确认,idea_id={idea_id}, tags={tags}")
         self._show_tooltip(f'✅ 已记录并绑定 {len(tags)} 个标签', 2000)
         self._refresh_all()
 
@@ -352,7 +478,7 @@ class MainWindow(QWidget):
             print(f"[DEBUG] 标签筛选后剩余 {len(data_list)} 条")
             
         if not data_list:
-            self.list_layout.addWidget(QLabel("📭 空空如也", alignment=Qt.AlignCenter, styleSheet="color:#666;font-size:16px;margin-top:50px"))
+            self.list_layout.addWidget(QLabel("🔭 空空如也", alignment=Qt.AlignCenter, styleSheet="color:#666;font-size:16px;margin-top:50px"))
             
         for d in data_list:
             c = IdeaCard(d, self.db)
@@ -386,9 +512,9 @@ class MainWindow(QWidget):
         
         if not in_trash:
             menu.addAction('✏️ 编辑', self._do_edit)
-            menu.addAction('📋 提取（Ctrl+T）', lambda: self._extract_single(idea_id))
+            menu.addAction('📋 提取(Ctrl+T)', lambda: self._extract_single(idea_id))
             menu.addSeparator()
-            menu.addAction('📍 取消置顶' if data[4] else '📌 置顶', self._do_pin)
+            menu.addAction('📌 取消置顶' if data[4] else '📌 置顶', self._do_pin)
             menu.addAction('☆ 取消收藏' if data[5] else '⭐ 收藏', self._do_fav)
             menu.addSeparator()
             
@@ -413,7 +539,7 @@ class MainWindow(QWidget):
             self._show_tooltip('✅ 已移动分类')
 
     def _on_select(self, iid):
-        print(f"[DEBUG] _on_select 被调用，idea_id={iid}")
+        print(f"[DEBUG] _on_select 被调用,idea_id={iid}")
         self.selected_id = iid
         for k, c in self.cards.items():
             c.update_selection(k == iid)
@@ -472,7 +598,7 @@ class MainWindow(QWidget):
             self._refresh_all()
 
     def _do_destroy(self):
-        if self.selected_id and QMessageBox.Yes == QMessageBox.warning(self, '⚠️ 警告', '确定永久删除？\n此操作不可恢复！', QMessageBox.Yes | QMessageBox.No):
+        if self.selected_id and QMessageBox.Yes == QMessageBox.warning(self, '⚠️ 警告', '确定永久删除?\n此操作不可恢复!', QMessageBox.Yes | QMessageBox.No):
             self.db.delete_permanent(self.selected_id)
             self.selected_id = None
             self._refresh_all()
@@ -485,7 +611,7 @@ class MainWindow(QWidget):
 
     def _extract_single(self, idea_id):
         """双击直接提取正文内容到剪贴板"""
-        print(f"[DEBUG] _extract_single 被调用，idea_id={idea_id}")
+        print(f"[DEBUG] _extract_single 被调用,idea_id={idea_id}")
         
         data = self.db.get_idea(idea_id)
         if not data:
@@ -496,7 +622,7 @@ class MainWindow(QWidget):
         content_to_copy = data[2] if data[2] else ""
         QApplication.clipboard().setText(content_to_copy)
         
-        # 更新提示信息，显示正文预览
+        # 更新提示信息,显示正文预览
         preview = content_to_copy.replace('\n', ' ')[:40] + ('...' if len(content_to_copy) > 40 else '')
         self._show_tooltip(f'✅ 内容已提取到剪贴板\n\n📋 {preview}', 2500)
         
@@ -505,7 +631,7 @@ class MainWindow(QWidget):
     def _extract_all(self):
         data = self.db.get_ideas('', 'all', None)
         if not data:
-            self._show_tooltip('📭 暂无数据', 1500)
+            self._show_tooltip('🔭 暂无数据', 1500)
             return
             
         lines = ['='*60, '💡 灵感闪记 - 内容导出', '='*60, '']
@@ -521,13 +647,13 @@ class MainWindow(QWidget):
             
         text = '\n'.join(lines)
         QApplication.clipboard().setText(text)
-        self._show_tooltip(f'✅ 已提取 {len(data)} 条到剪贴板！', 2000)
+        self._show_tooltip(f'✅ 已提取 {len(data)} 条到剪贴板!', 2000)
 
     def _handle_del_key(self):
         self._do_destroy() if self.curr_filter[0] == 'trash' else self._do_del()
 
     def _handle_extract_key(self):
-        """处理 Ctrl+T 快捷键，提取选中笔记的正文"""
+        """处理 Ctrl+T 快捷键,提取选中笔记的正文"""
         if self.selected_id:
             self._extract_single(self.selected_id)
         else:
@@ -543,7 +669,7 @@ class MainWindow(QWidget):
 
     def closeEvent(self, event):
         """
-        重写关闭事件，使其发出 closing 信号而不是直接关闭。
+        重写关闭事件,使其发出 closing 信号而不是直接关闭。
         """
         self.closing.emit()
         self.hide()

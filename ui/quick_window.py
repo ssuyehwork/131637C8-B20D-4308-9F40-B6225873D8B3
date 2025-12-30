@@ -225,10 +225,14 @@ class QuickWindow(QWidget):
         self.container.setObjectName("Container")
         self.root_layout.addWidget(self.container)
         
+        # ====== 优化阴影效果 ======
         shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(20)
-        shadow.setColor(QColor(0, 0, 0, 160))
+        shadow.setBlurRadius(25)          # 从20改为25,更柔和
+        shadow.setXOffset(0)              # X偏移设为0,更居中
+        shadow.setYOffset(4)              # Y偏移设为4,轻微下沉
+        shadow.setColor(QColor(0, 0, 0, 100))  # 降低透明度从160到100
         self.container.setGraphicsEffect(shadow)
+        # ========================
         
         self.setStyleSheet(DARK_STYLESHEET)
         
