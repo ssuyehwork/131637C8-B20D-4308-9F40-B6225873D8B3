@@ -23,11 +23,32 @@ STYLES = {
     'main_window': f"""
         QWidget {{ background-color: {COLORS['bg_dark']}; color: {COLORS['text']}; font-family: "Microsoft YaHei", "Segoe UI", sans-serif; }}
         QSplitter::handle {{ background-color: {COLORS['bg_light']}; }}
-        /* 滚动条美化 */
-        QScrollBar:vertical {{ border: none; background: {COLORS['bg_dark']}; width: 10px; margin: 0; }}
-        QScrollBar::handle:vertical {{ background: #444; min-height: 20px; border-radius: 5px; }}
-        QScrollBar::handle:vertical:hover {{ background: #555; }}
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+        /* 滚动条美化 V2 */
+        QScrollBar:vertical {{
+            border: none;
+            background: transparent; /* 背景透明 */
+            width: 8px; /* 变细一点 */
+            margin: 0px;
+        }}
+        QScrollBar::handle:vertical {{
+            background: #555; /* 滑块颜色 */
+            min-height: 25px;
+            border-radius: 4px; /* 圆角 */
+        }}
+        QScrollBar::handle:vertical:hover {{
+            background: #666; /* 悬停时颜色 */
+        }}
+        QScrollBar::handle:vertical:pressed {{
+            background: {COLORS['primary']}; /* 按下时颜色 */
+        }}
+        /* 上下箭头按钮不显示 */
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+            height: 0px;
+        }}
+        /* 滑道不显示 */
+        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+            background: none;
+        }}
     """,
     
     # === 侧边栏 ===

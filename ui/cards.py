@@ -118,24 +118,43 @@ class IdeaCard(QFrame):
         self.update_selection(False)
 
     def update_selection(self, selected):
-        border_color = "2px solid white" if selected else "1px solid rgba(255,255,255,0.1)"
         bg_color = self.data[3]
         
-        self.setStyleSheet(f"""
-            IdeaCard {{
-                background-color: {bg_color};
-                {STYLES['card_base']}
-                border: {border_color};
-                padding: 0px;
-            }}
-            IdeaCard:hover {{
-                border: 2px solid rgba(255,255,255,0.4);
-            }}
-            QLabel {{
+        if selected:
+            # 当被选中时,无论是否悬停,都保持白色边框
+            style = f"""
+                IdeaCard {{
+                    background-color: {bg_color};
+                    {STYLES['card_base']}
+                    border: 2px solid white;
+                    padding: 0px;
+                }}
+                IdeaCard:hover {{
+                    border: 2px solid white; /* 覆盖默认的hover效果 */
+                }}
+            """
+        else:
+            # 未选中时的默认行为
+            style = f"""
+                IdeaCard {{
+                    background-color: {bg_color};
+                    {STYLES['card_base']}
+                    border: 1px solid rgba(255,255,255,0.1);
+                    padding: 0px;
+                }}
+                IdeaCard:hover {{
+                    border: 2px solid rgba(255,255,255,0.4);
+                }}
+            """
+            
+        # 通用的QLabel样式,避免重复
+        style += """
+            QLabel {
                 background-color: transparent;
                 border: none;
-            }}
-        """)
+            }
+        """
+        self.setStyleSheet(style)
 
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:
