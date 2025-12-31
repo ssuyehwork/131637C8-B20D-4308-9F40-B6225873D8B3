@@ -28,64 +28,71 @@ class IdeaCard(QFrame):
     def _init_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(15, 12, 15, 12)
-        layout.setSpacing(8)
+        layout.setSpacing(6) # 稍微减小间距，让内容更紧凑
         
+        # --- 顶部：标题 + 图标 ---
         top = QHBoxLayout()
         top.setSpacing(8)
         
+        # 标题
         title = QLabel(self.data[1])
-        title.setStyleSheet("font-size:16px; font-weight:bold; background:transparent; color:white;")
-        title.setWordWrap(True)
+        title.setStyleSheet("font-size:15px; font-weight:bold; background:transparent; color:white;")
+        title.setWordWrap(False) # 标题单行显示，超出显示省略号
+        # 设置标题的 Elide 模式需要更复杂的处理，这里暂用样式表控制或默认行为
         top.addWidget(title, stretch=1)
         
+        # 图标区域 (置顶/收藏)
         icon_layout = QHBoxLayout()
         icon_layout.setSpacing(4)
         if self.data[4]:  # is_pinned
             pin_icon = QLabel('📌')
-            pin_icon.setStyleSheet("background:transparent; font-size:14px;")
+            pin_icon.setStyleSheet("background:transparent; font-size:12px;")
             icon_layout.addWidget(pin_icon)
         if self.data[5]:  # is_favorite
             fav_icon = QLabel('⭐')
-            fav_icon.setStyleSheet("background:transparent; font-size:14px;")
+            fav_icon.setStyleSheet("background:transparent; font-size:12px;")
             icon_layout.addWidget(fav_icon)
             
         top.addLayout(icon_layout)
         layout.addLayout(top)
         
+        # --- 中部：内容预览 ---
         if self.data[2]:
-            content_preview = self.data[2].strip()
-            lines = content_preview.split('\n')
-            first_para = lines[0] if lines else ""
+            content_str = self.data[2].strip()
             
-            if len(first_para) > 80:
-                preview_text = first_para[:80] + '...'
-            elif len(lines) > 1:
-                preview_text = first_para + '...'
-            else:
-                preview_text = first_para
+            # 【修复逻辑】不再暴力截断第一行，而是获取一段较长的文本，让 Label 自动换行
+            # 将换行符替换为空格，以便在卡片中连续显示
+            preview_text = content_str[:300].replace('\n', ' ').replace('\r', '')
+            if len(content_str) > 300:
+                preview_text += "..."
                 
-            content = QLabel(preview_text.replace('\n', ' '))
+            content = QLabel(preview_text)
             content.setStyleSheet("""
-                color:rgba(255,255,255,180); 
-                margin-top:2px; 
-                background:transparent; 
-                font-size:13px;
-                line-height:1.4;
+                color: rgba(255,255,255,180); 
+                margin-top: 2px; 
+                background: transparent; 
+                font-size: 13px;
+                line-height: 1.4;
             """)
-            content.setWordWrap(True)
-            content.setMaximumHeight(60)
+            content.setWordWrap(True) # 允许自动换行
+            content.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+            # 限制高度，大概显示 3 行文字的高度
+            content.setMaximumHeight(65) 
             layout.addWidget(content)
             
+        # --- 底部：时间 + 标签 ---
         bot = QHBoxLayout()
         bot.setSpacing(6)
         
-        time_str = self.data[7][:16]
-        time_label = QLabel(f'🕒 {time_str}')
-        time_label.setStyleSheet("color:rgba(255,255,255,120); font-size:11px; background:transparent;")
+        # 时间
+        time_str = self.data[7][:16] # YYYY-MM-DD HH:mm
+        time_label = QLabel(f'{time_str}')
+        time_label.setStyleSheet("color:rgba(255,255,255,100); font-size:11px; background:transparent;")
         bot.addWidget(time_label)
         
         bot.addStretch()
         
+        # 标签
         tags = self.db.get_tags(self.id)
         visible_tags = tags[:3]
         remaining = len(tags) - 3
@@ -93,23 +100,22 @@ class IdeaCard(QFrame):
         for tag in visible_tags:
             tag_label = QLabel(f"#{tag}")
             tag_label.setStyleSheet("""
-                background:rgba(0,0,0,50); 
-                border-radius:8px; 
-                padding:3px 8px; 
-                font-size:10px; 
-                color:rgba(255,255,255,200);
-                font-weight:bold;
+                background: rgba(255,255,255,0.1); 
+                border-radius: 4px; 
+                padding: 2px 6px; 
+                font-size: 10px; 
+                color: rgba(255,255,255,180);
             """)
             bot.addWidget(tag_label)
             
         if remaining > 0:
             more_label = QLabel(f'+{remaining}')
             more_label.setStyleSheet("""
-                background:rgba(74,144,226,0.3); 
-                border-radius:8px; 
-                padding:3px 6px; 
-                font-size:10px; 
-                color:#4a90e2;
+                background: rgba(74,144,226,0.3); 
+                border-radius: 4px; 
+                padding: 2px 6px; 
+                font-size: 10px; 
+                color: #4a90e2;
                 font-weight:bold;
             """)
             bot.addWidget(more_label)
@@ -120,41 +126,45 @@ class IdeaCard(QFrame):
     def update_selection(self, selected):
         bg_color = self.data[3]
         
-        if selected:
-            # 当被选中时,无论是否悬停,都保持白色边框
-            style = f"""
-                IdeaCard {{
-                    background-color: {bg_color};
-                    {STYLES['card_base']}
-                    border: 2px solid white;
-                    padding: 0px;
-                }}
-                IdeaCard:hover {{
-                    border: 2px solid white; /* 覆盖默认的hover效果 */
-                }}
-            """
-        else:
-            # 未选中时的默认行为
-            style = f"""
-                IdeaCard {{
-                    background-color: {bg_color};
-                    {STYLES['card_base']}
-                    border: 1px solid rgba(255,255,255,0.1);
-                    padding: 0px;
-                }}
-                IdeaCard:hover {{
-                    border: 2px solid rgba(255,255,255,0.4);
-                }}
-            """
-            
-        # 通用的QLabel样式,避免重复
-        style += """
-            QLabel {
+        # 基础样式
+        base_style = f"""
+            IdeaCard {{
+                background-color: {bg_color};
+                {STYLES['card_base']}
+                padding: 0px;
+            }}
+            QLabel {{
                 background-color: transparent;
                 border: none;
-            }
+            }}
         """
-        self.setStyleSheet(style)
+
+        if selected:
+            # 选中状态：白色粗边框
+            border_style = "border: 2px solid white;"
+        else:
+            # 未选中状态：透明微弱边框，悬停变亮
+            border_style = """
+                border: 1px solid rgba(255,255,255,0.1);
+            """
+            
+        # 合并 hover 效果到样式表中
+        final_style = base_style + f"""
+            IdeaCard {{ {border_style} }}
+            IdeaCard:hover {{
+                border: 2px solid rgba(255,255,255,0.4);
+            }}
+        """
+        
+        # 如果选中了，需要覆盖 hover 样式，保持选中状态的边框
+        if selected:
+            final_style += """
+                IdeaCard:hover {
+                    border: 2px solid white;
+                }
+            """
+            
+        self.setStyleSheet(final_style)
 
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:
@@ -169,7 +179,7 @@ class IdeaCard(QFrame):
         if (e.pos() - self._drag_start_pos).manhattanLength() < QApplication.startDragDistance():
             return
         
-        # Drag started, so it's not a click anymore
+        # 拖拽开始，取消点击判定
         self._is_potential_click = False
         
         drag = QDrag(self)

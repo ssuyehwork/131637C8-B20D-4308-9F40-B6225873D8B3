@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # data/db_manager.py
 import sqlite3
 import hashlib
@@ -156,7 +157,9 @@ class DatabaseManager:
 
     def set_deleted(self, iid, state):
         c = self.conn.cursor()
-        c.execute('UPDATE ideas SET is_deleted=? WHERE id=?', (1 if state else 0, iid))
+        # 【修改】更新删除状态的同时，更新 updated_at 为当前时间
+        # 这样在回收站按时间排序时，就能反映删除操作的时间
+        c.execute('UPDATE ideas SET is_deleted=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', (1 if state else 0, iid))
         self.conn.commit()
 
     def set_favorite(self, iid, state):
@@ -204,7 +207,14 @@ class DatabaseManager:
             q += ' AND (i.title LIKE ? OR i.content LIKE ? OR t.name LIKE ?)'
             p.extend([f'%{search}%']*3)
             
-        q += ' ORDER BY i.is_pinned DESC, i.updated_at DESC'
+        # 【修改】排序逻辑
+        if f_type == 'trash':
+            # 回收站模式：完全按照操作时间（即删除时间）倒序，不考虑置顶
+            q += ' ORDER BY i.updated_at DESC'
+        else:
+            # 正常模式：置顶优先，然后按更新时间
+            q += ' ORDER BY i.is_pinned DESC, i.updated_at DESC'
+            
         c.execute(q, p)
         return c.fetchall()
 

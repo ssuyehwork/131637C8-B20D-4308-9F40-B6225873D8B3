@@ -24,6 +24,7 @@ class ContentContainer(QWidget):
 
     def mousePressEvent(self, e):
         # 当点击事件发生在自身，而不是子控件(卡片)上时，发射信号
+        # 这意味着点击了卡片之间的空白处
         if self.childAt(e.pos()) is None:
             self.cleared.emit()
         super().mousePressEvent(e)
@@ -125,7 +126,7 @@ class MainWindow(QWidget):
         QShortcut(QKeySequence("Delete"), self, self._handle_del_key)
         QShortcut(QKeySequence("Escape"), self, self._clear_tag_filter)
         
-        # 【修改】使用 WindowShortcut 上下文绑定空格键
+        # 使用 WindowShortcut 上下文绑定空格键
         self.space_shortcut = QShortcut(QKeySequence(Qt.Key_Space), self)
         self.space_shortcut.setContext(Qt.WindowShortcut)
         self.space_shortcut.activated.connect(lambda: self.preview_service.toggle_preview(self.selected_ids))
@@ -143,7 +144,7 @@ class MainWindow(QWidget):
         self._update_ui_state()
 
     def _clear_all_selections(self):
-        """清除所有选中项"""
+        """清除所有选中项（点击空白处时调用）"""
         if not self.selected_ids:
             return
         self.selected_ids.clear()
@@ -615,12 +616,11 @@ class MainWindow(QWidget):
     def _handle_selection_request(self, iid, is_ctrl_pressed):
         """处理卡片点击事件，更新选择集合"""
         if not is_ctrl_pressed:
-            # 普通单击：如果已选中多项，则只选中当前项。如果只选中当前项，则取消选择。
-            if len(self.selected_ids) > 1 or iid not in self.selected_ids:
-                self.selected_ids.clear()
-                self.selected_ids.add(iid)
-            else:
-                self.selected_ids.clear()
+            # 【修复逻辑】普通单击：
+            # 始终强制选中当前项，并清除其他选中项。
+            # 这符合标准文件管理器的逻辑：单击即选中，只有点击空白处才取消。
+            self.selected_ids.clear()
+            self.selected_ids.add(iid)
         else:
             # Ctrl+单击：切换当前项的选中状态
             if iid in self.selected_ids:
