@@ -14,7 +14,6 @@ class DatabaseManager:
     def _init_schema(self):
         c = self.conn.cursor()
         
-        # 1. 优先创建表
         c.execute(f'''CREATE TABLE IF NOT EXISTS ideas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL, content TEXT, color TEXT DEFAULT '{COLORS['default_note']}',
@@ -33,7 +32,6 @@ class DatabaseManager:
         )''')
         c.execute('CREATE TABLE IF NOT EXISTS idea_tags (idea_id INTEGER, tag_id INTEGER, PRIMARY KEY (idea_id, tag_id))')
         
-        # 2. 检查迁移
         c.execute("PRAGMA table_info(ideas)")
         cols = [i[1] for i in c.fetchall()]
         if 'category_id' not in cols:
@@ -113,9 +111,8 @@ class DatabaseManager:
                 tid = c.fetchone()[0]
                 c.execute('INSERT OR IGNORE INTO idea_tags VALUES (?,?)', (iid, tid))
 
-    # --- 批量标签操作 (新增) ---
+    # --- 批量标签操作 ---
     def add_tags_to_multiple_ideas(self, idea_ids, tags_list):
-        """给多个 ID 批量添加标签"""
         if not idea_ids or not tags_list: return
         c = self.conn.cursor()
         for tag_name in tags_list:
@@ -126,13 +123,11 @@ class DatabaseManager:
             c.execute('SELECT id FROM tags WHERE name=?', (tag_name,))
             tid = c.fetchone()[0]
             
-            # 为每个 idea_id 插入关联
             for iid in idea_ids:
                 c.execute('INSERT OR IGNORE INTO idea_tags (idea_id, tag_id) VALUES (?,?)', (iid, tid))
         self.conn.commit()
 
     def remove_tag_from_multiple_ideas(self, idea_ids, tag_name):
-        """从多个 ID 中移除指定标签"""
         if not idea_ids or not tag_name: return
         c = self.conn.cursor()
         c.execute('SELECT id FROM tags WHERE name=?', (tag_name,))
@@ -140,14 +135,12 @@ class DatabaseManager:
         if not res: return
         tid = res[0]
         
-        # 批量删除
         placeholders = ','.join('?' * len(idea_ids))
         sql = f'DELETE FROM idea_tags WHERE tag_id=? AND idea_id IN ({placeholders})'
         c.execute(sql, (tid, *idea_ids))
         self.conn.commit()
 
     def get_union_tags(self, idea_ids):
-        """获取这些 ID 拥有的所有标签（并集）"""
         if not idea_ids: return []
         c = self.conn.cursor()
         placeholders = ','.join('?' * len(idea_ids))
@@ -160,6 +153,49 @@ class DatabaseManager:
         '''
         c.execute(sql, tuple(idea_ids))
         return [r[0] for r in c.fetchall()]
+
+    # 【新增】重命名标签 (自动处理合并)
+    def rename_tag(self, old_name, new_name):
+        new_name = new_name.strip()
+        if not new_name or old_name == new_name: return
+
+        c = self.conn.cursor()
+        
+        # 获取旧ID
+        c.execute("SELECT id FROM tags WHERE name=?", (old_name,))
+        old_res = c.fetchone()
+        if not old_res: return
+        old_id = old_res[0]
+
+        # 检查新名称是否已存在
+        c.execute("SELECT id FROM tags WHERE name=?", (new_name,))
+        new_res = c.fetchone()
+
+        try:
+            if new_res:
+                # 合并模式：将所有旧ID的关联转移到新ID
+                new_id = new_res[0]
+                c.execute("UPDATE OR IGNORE idea_tags SET tag_id=? WHERE tag_id=?", (new_id, old_id))
+                c.execute("DELETE FROM idea_tags WHERE tag_id=?", (old_id,)) # 删除多余的关联
+                c.execute("DELETE FROM tags WHERE id=?", (old_id,)) # 删除旧标签定义
+            else:
+                # 纯改名模式
+                c.execute("UPDATE tags SET name=? WHERE id=?", (new_name, old_id))
+            self.conn.commit()
+        except Exception as e:
+            print(f"[DB] Rename tag failed: {e}")
+            self.conn.rollback()
+
+    # 【新增】彻底删除标签
+    def delete_tag(self, tag_name):
+        c = self.conn.cursor()
+        c.execute("SELECT id FROM tags WHERE name=?", (tag_name,))
+        res = c.fetchone()
+        if res:
+            tag_id = res[0]
+            c.execute("DELETE FROM idea_tags WHERE tag_id=?", (tag_id,))
+            c.execute("DELETE FROM tags WHERE id=?", (tag_id,))
+            self.conn.commit()
 
     # ---------------------------
 

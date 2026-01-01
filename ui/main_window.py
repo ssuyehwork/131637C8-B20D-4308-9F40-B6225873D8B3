@@ -375,11 +375,11 @@ class MainWindow(QWidget):
         self.tag_input.doubleClicked.connect(self._open_tag_selector_for_selection)
         layout.addWidget(self.tag_input)
         
-        # 3. 分割线 (恢复)
+        # 3. 分割线
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
         line.setFrameShadow(QFrame.Plain)
-        line.setStyleSheet(f"background-color: {COLORS['bg_light']}; max-height: 1px; margin-top: 5px; margin-bottom: 5px;")
+        line.setStyleSheet(f"background-color: #505050; border: none; max-height: 1px; margin-top: 5px; margin-bottom: 5px;")
         layout.addWidget(line)
         
         # 4. 标签列表区域
@@ -395,6 +395,7 @@ class MainWindow(QWidget):
         """)
         
         self.tag_list_widget = QWidget()
+        # 使用流式布局
         self.tag_list_layout = FlowLayout(self.tag_list_widget, margin=0, spacing=8)
         
         scroll.setWidget(self.tag_list_widget)
@@ -429,6 +430,178 @@ class MainWindow(QWidget):
         if not self.selected_ids: return
         self.db.remove_tag_from_multiple_ideas(list(self.selected_ids), tag_name)
         self._refresh_all()
+
+    # 【核心逻辑】显示右键菜单
+    def _show_tag_context_menu(self, pos, tag_name):
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{ background-color: #2D2D2D; color: #EEE; border: 1px solid #444; }}
+            QMenu::item {{ padding: 6px 20px; }}
+            QMenu::item:selected {{ background-color: {COLORS['primary']}; }}
+        """)
+        
+        menu.addAction("✏️ 重命名", lambda: self._rename_tag_action(tag_name))
+        menu.addSeparator()
+        menu.addAction("🗑️ 删除该标签 (全局)", lambda: self._delete_tag_action(tag_name))
+        
+        # 在鼠标位置弹出
+        menu.exec_(QCursor.pos())
+
+    # 【核心修改】自定义输入弹窗 (替代 QInputDialog)
+    def _show_custom_input_dialog(self, title, label_text, default_text=""):
+        dlg = QDialog(self)
+        dlg.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        dlg.setAttribute(Qt.WA_TranslucentBackground)
+        dlg.setFixedSize(320, 160)
+        
+        # 布局容器
+        container = QWidget(dlg)
+        container.setGeometry(0, 0, 320, 160)
+        container.setStyleSheet(f"""
+            QWidget {{
+                background-color: {COLORS['bg_mid']};
+                border: 1px solid #444;
+                border-radius: 8px;
+            }}
+        """)
+        
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+        
+        # 标题
+        lbl = QLabel(label_text)
+        lbl.setStyleSheet("color: #DDD; font-size: 14px; font-weight: bold; border: none;")
+        layout.addWidget(lbl)
+        
+        # 输入框
+        inp = QLineEdit(default_text)
+        inp.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: #1E1E1E;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 6px;
+                color: #EEE;
+                font-size: 13px;
+            }}
+            QLineEdit:focus {{ border: 1px solid {COLORS['primary']}; }}
+        """)
+        inp.selectAll() # 自动全选方便修改
+        layout.addWidget(inp)
+        
+        # 按钮组
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        
+        btn_cancel = QPushButton("取消")
+        btn_cancel.setCursor(Qt.PointingHandCursor)
+        btn_cancel.setStyleSheet("""
+            QPushButton { background: transparent; color: #AAA; border: none; font-size: 13px; }
+            QPushButton:hover { color: #EEE; }
+        """)
+        btn_cancel.clicked.connect(dlg.reject)
+        
+        btn_ok = QPushButton("确定")
+        btn_ok.setCursor(Qt.PointingHandCursor)
+        btn_ok.setStyleSheet(f"""
+            QPushButton {{ 
+                background-color: {COLORS['primary']}; 
+                color: white; 
+                border-radius: 4px; 
+                padding: 6px 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: #357ABD; }}
+        """)
+        btn_ok.clicked.connect(dlg.accept)
+        
+        btn_layout.addWidget(btn_cancel)
+        btn_layout.addWidget(btn_ok)
+        layout.addLayout(btn_layout)
+        
+        if dlg.exec_() == QDialog.Accepted:
+            return inp.text(), True
+        return "", False
+
+    # 【核心修改】自定义确认弹窗 (替代 QMessageBox)
+    def _show_custom_confirm_dialog(self, title, msg):
+        dlg = QDialog(self)
+        dlg.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        dlg.setAttribute(Qt.WA_TranslucentBackground)
+        dlg.setFixedSize(340, 180)
+        
+        container = QWidget(dlg)
+        container.setGeometry(0, 0, 340, 180)
+        container.setStyleSheet(f"""
+            QWidget {{
+                background-color: {COLORS['bg_mid']};
+                border: 1px solid #444;
+                border-radius: 8px;
+            }}
+        """)
+        
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(25, 25, 25, 20)
+        layout.setSpacing(15)
+        
+        # 标题/警告
+        title_lbl = QLabel(f"⚠️  {title}")
+        title_lbl.setStyleSheet(f"color: {COLORS['danger']}; font-size: 15px; font-weight: bold; border: none;")
+        layout.addWidget(title_lbl)
+        
+        # 内容
+        content_lbl = QLabel(msg)
+        content_lbl.setWordWrap(True)
+        content_lbl.setStyleSheet("color: #CCC; font-size: 13px; border: none; line-height: 1.4;")
+        layout.addWidget(content_lbl)
+        
+        layout.addStretch()
+        
+        # 按钮
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        
+        btn_cancel = QPushButton("取消")
+        btn_cancel.setCursor(Qt.PointingHandCursor)
+        btn_cancel.setStyleSheet("""
+            QPushButton { background: transparent; color: #AAA; border: none; font-size: 13px; }
+            QPushButton:hover { color: #EEE; }
+        """)
+        btn_cancel.clicked.connect(dlg.reject)
+        
+        btn_del = QPushButton("删除")
+        btn_del.setCursor(Qt.PointingHandCursor)
+        btn_del.setStyleSheet(f"""
+            QPushButton {{ 
+                background-color: {COLORS['danger']}; 
+                color: white; 
+                border-radius: 4px; 
+                padding: 6px 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: #C0392B; }}
+        """)
+        btn_del.clicked.connect(dlg.accept)
+        
+        btn_layout.addWidget(btn_cancel)
+        btn_layout.addWidget(btn_del)
+        layout.addLayout(btn_layout)
+        
+        return dlg.exec_() == QDialog.Accepted
+
+    def _rename_tag_action(self, old_name):
+        # 使用自定义输入框
+        new_name, ok = self._show_custom_input_dialog("重命名标签", "请输入新名称:", old_name)
+        if ok and new_name and new_name.strip():
+            self.db.rename_tag(old_name, new_name.strip())
+            self._refresh_all() 
+
+    def _delete_tag_action(self, tag_name):
+        # 使用自定义确认框
+        if self._show_custom_confirm_dialog("删除标签", f"确定要彻底删除标签 #{tag_name} 吗？\n所有引用该标签的数据都将解除关联。"):
+            self.db.delete_tag(tag_name)
+            self._refresh_all()
 
     def _refresh_tag_panel(self):
         while self.tag_list_layout.count():
@@ -510,6 +683,9 @@ class MainWindow(QWidget):
                 
                 btn = QPushButton(f'{icon} {tag_name}')
                 btn.setCursor(Qt.PointingHandCursor)
+                
+                btn.setContextMenuPolicy(Qt.CustomContextMenu)
+                btn.customContextMenuRequested.connect(lambda pos, n=tag_name: self._show_tag_context_menu(pos, n))
                 
                 bg_color = COLORS['primary'] if is_active else '#333333'
                 border_color = COLORS['primary'] if is_active else '#444444'
