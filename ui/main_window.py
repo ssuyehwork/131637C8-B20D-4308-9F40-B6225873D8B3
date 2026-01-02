@@ -6,7 +6,8 @@ from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QSplitter, QLine
                                QPushButton, QLabel, QScrollArea, QShortcut, QMessageBox,
                                QApplication, QToolTip, QMenu, QFrame, QTextEdit, QDialog,
                                QGraphicsDropShadowEffect, QLayout, QSizePolicy, QInputDialog)
-from PyQt5.QtCore import Qt, QTimer, QPoint, pyqtSignal, QRect, QSize
+# 【修复】添加 QByteArray 导入
+from PyQt5.QtCore import Qt, QTimer, QPoint, pyqtSignal, QRect, QSize, QByteArray
 from PyQt5.QtGui import QKeySequence, QCursor, QColor, QIntValidator
 from core.config import STYLES, COLORS
 from core.settings import load_setting, save_setting
@@ -155,6 +156,7 @@ class MainWindow(QWidget):
         
         self._setup_ui()
         self._load_data()
+    
     def _setup_ui(self):
         self.setWindowTitle('数据管理')
         # self.resize(1300, 700) # Replaced by restore
@@ -220,6 +222,32 @@ class MainWindow(QWidget):
         self.space_shortcut = QShortcut(QKeySequence(Qt.Key_Space), self)
         self.space_shortcut.setContext(Qt.WindowShortcut)
         self.space_shortcut.activated.connect(lambda: self.preview_service.toggle_preview(self.selected_ids))
+
+    # 【修复】添加缺失的方法：_restore_window_state
+    def _restore_window_state(self):
+        geo_hex = load_setting("main_window_geometry_hex")
+        if geo_hex:
+            try:
+                self.restoreGeometry(QByteArray.fromHex(geo_hex.encode()))
+            except:
+                self._default_geometry()
+        else:
+            self._default_geometry()
+
+    def _default_geometry(self):
+        self.resize(1300, 700)
+        geo = QApplication.desktop().screenGeometry()
+        x = (geo.width() - self.width()) // 2
+        y = (geo.height() - self.height()) // 2
+        self.move(x, y)
+
+    # 【修复】添加缺失的方法：save_state
+    def save_state(self):
+        try:
+            geo_hex = self.saveGeometry().toHex().data().decode()
+            save_setting("main_window_geometry_hex", geo_hex)
+        except Exception:
+            pass
 
     def _select_all(self):
         if not self.cards: return
