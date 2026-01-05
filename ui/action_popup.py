@@ -6,7 +6,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QPoint, QSize
 from PyQt5.QtGui import QCursor, QColor
 from core.config import COLORS
 from ui.common_tags import CommonTags
-from ui.success_animation import SuccessAnimationWidget
+from ui.writing_animation import WritingAnimationWidget
 
 class ActionPopup(QWidget):
     """
@@ -45,8 +45,8 @@ class ActionPopup(QWidget):
         layout = QHBoxLayout(self.container)
         layout.setContentsMargins(12, 6, 12, 6)
         layout.setSpacing(10)
-        
-        self.success_animation = SuccessAnimationWidget()
+
+        self.success_animation = WritingAnimationWidget()
         layout.addWidget(self.success_animation)
         
         line = QLabel("|")
