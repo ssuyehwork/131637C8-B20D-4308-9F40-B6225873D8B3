@@ -96,7 +96,7 @@ class AppManager(QObject):
         
         self.popup = ActionPopup() 
         self.popup.request_favorite.connect(self._handle_popup_favorite)
-        self.popup.request_tag_toggle.connect(self._handle_popup_tag_toggle)
+        self.popup.request_tag_add.connect(self._handle_popup_tag_add)
         self.popup.request_manager.connect(self._open_common_tags_manager)
         
         self.quick_window.cm.data_captured.connect(self._on_clipboard_data_captured)
@@ -161,11 +161,8 @@ class AppManager(QObject):
             self.main_window._load_data()
             self.main_window.sidebar.refresh()
 
-    def _handle_popup_tag_toggle(self, idea_id, tag_name, checked):
-        if checked:
-            self.db_manager.add_tags_to_multiple_ideas([idea_id], [tag_name])
-        else:
-            self.db_manager.remove_tag_from_multiple_ideas([idea_id], tag_name)
+    def _handle_popup_tag_add(self, idea_id, tag_name):
+        self.db_manager.add_tags_to_multiple_ideas([idea_id], [tag_name])
             
         if self.main_window.isVisible():
             self.main_window._load_data()
