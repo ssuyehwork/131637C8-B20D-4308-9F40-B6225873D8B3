@@ -4,7 +4,7 @@ import sys
 from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QApplication, QSizePolicy
 from PyQt5.QtCore import Qt, pyqtSignal, QMimeData, QSize
 from PyQt5.QtGui import QDrag, QPixmap, QImage
-from core.config import STYLES
+from core.config import STYLES, COLORS
 
 class IdeaCard(QFrame):
     # (id, is_ctrl, is_shift)
@@ -58,7 +58,7 @@ class IdeaCard(QFrame):
         
         if is_locked:
             lock_icon = QLabel('🔒')
-            lock_icon.setStyleSheet("background:transparent; font-size:12px;")
+            lock_icon.setStyleSheet(f"background:transparent; font-size:12px; color: {COLORS['success']};")
             icon_layout.addWidget(lock_icon)
 
         if self.data[4]:  # is_pinned
