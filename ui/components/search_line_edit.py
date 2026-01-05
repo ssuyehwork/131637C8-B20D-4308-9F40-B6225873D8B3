@@ -213,10 +213,6 @@ class SearchHistoryPopup(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         # 强制全透明背景
-        scroll.setStyleSheet("""
-            QScrollArea { background-color: transparent; border: none; }
-            QScrollArea > QWidget > QWidget { background-color: transparent; }
-        """)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         

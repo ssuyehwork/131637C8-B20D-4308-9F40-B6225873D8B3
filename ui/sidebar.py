@@ -19,7 +19,6 @@ class Sidebar(QTreeWidget):
     filter_changed = pyqtSignal(str, object)
     data_changed = pyqtSignal()
     new_data_requested = pyqtSignal(int)
-    category_color_changed = pyqtSignal(int, str)
 
     def __init__(self, db, parent=None):
         super().__init__(parent)
@@ -360,6 +359,12 @@ class Sidebar(QTreeWidget):
             for cid in all_ids:
                 cursor.execute("UPDATE categories SET color = ? WHERE id = ?", (color_name, cid))
             self.db.conn.commit()
+
+            # --- CRITICAL FIX ---
+            # Also update the color of all ideas within these categories
+            self.db.update_idea_colors_for_categories(all_ids, color_name)
+            # --- END FIX ---
+
         except Exception as e:
             self.db.conn.rollback()
             print(f"Error updating category colors: {e}")
@@ -387,8 +392,8 @@ class Sidebar(QTreeWidget):
         if top_item:
             update_icons_recursively(top_item)
 
-        # Emit the signal to notify other parts of the application
-        self.category_color_changed.emit(cat_id, color_name)
+        # Emit the generic data changed signal to trigger a full refresh
+        self.data_changed.emit()
 
     def _change_color(self, cat_id):
         color = QColorDialog.getColor(Qt.gray, self, "选择分类颜色")

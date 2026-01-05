@@ -435,6 +435,21 @@ class DatabaseManager:
         c.execute('UPDATE categories SET color=? WHERE id=?', (color, cat_id))
         self.conn.commit()
 
+    def update_idea_colors_for_categories(self, category_ids, new_color):
+        if not category_ids:
+            return
+        c = self.conn.cursor()
+        placeholders = ','.join('?' for _ in category_ids)
+        # Only update non-locked items
+        query = f"""
+            UPDATE ideas
+            SET color = ?
+            WHERE category_id IN ({placeholders}) AND is_locked = 0
+        """
+        params = [new_color] + category_ids
+        c.execute(query, params)
+        self.conn.commit()
+
     def set_category_preset_tags(self, cat_id, tags_str):
         c = self.conn.cursor()
         c.execute('UPDATE categories SET preset_tags=? WHERE id=?', (tags_str, cat_id))

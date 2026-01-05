@@ -162,10 +162,6 @@ class AdvancedTagSelector(QWidget):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("""
-            QScrollArea { border: none; background: transparent; }
-            QWidget { background: transparent; }
-        """)
         
         self.scroll_content = QWidget()
         self.flow_layout = FlowLayout(self.scroll_content, margin=0, spacing=8)
