@@ -114,6 +114,57 @@ class ClickableLineEdit(QLineEdit):
         self.doubleClicked.emit()
         super().mouseDoubleClickEvent(event)
 
+# --- 辅助类：带删除按钮的标签 ---
+class TagChipWidget(QWidget):
+    deleted = pyqtSignal(str)
+
+    def __init__(self, tag_name, parent=None):
+        super().__init__(parent)
+        self.tag_name = tag_name
+        self.setObjectName("TagChip")
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 5, 5, 5)
+        layout.setSpacing(6)
+
+        self.label = QLabel(tag_name)
+        self.label.setStyleSheet("border: none; background: transparent; color: #DDD; font-size: 12px; font-family: 'Segoe UI', 'Microsoft YaHei';")
+
+        self.delete_btn = QPushButton("✕")
+        self.delete_btn.setFixedSize(18, 18)
+        self.delete_btn.setCursor(Qt.PointingHandCursor)
+        self.delete_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: #AAA;
+                border: none;
+                border-radius: 9px;
+                font-size: 14px;
+                padding-bottom: 1px;
+            }}
+            QPushButton:hover {{
+                background-color: {COLORS['danger']};
+                color: white;
+            }}
+        """)
+
+        layout.addWidget(self.label)
+        layout.addWidget(self.delete_btn)
+
+        self.setStyleSheet("""
+            #TagChip {
+                background-color: #383838;
+                border: 1px solid #4D4D4D;
+                border-radius: 14px;
+            }
+        """)
+
+        self.delete_btn.clicked.connect(self._emit_delete)
+
+    def _emit_delete(self):
+        self.deleted.emit(self.tag_name)
+
+
 class MainWindow(QWidget):
     closing = pyqtSignal()
     RESIZE_MARGIN = 8
@@ -698,27 +749,9 @@ class MainWindow(QWidget):
                 self.tag_list_widget.layout().addWidget(lbl)
             else:
                 for tag_name in tags:
-                    btn = QPushButton(f"{tag_name}  ✕")
-                    btn.setCursor(Qt.PointingHandCursor)
-                    btn.setStyleSheet(f"""
-                        QPushButton {{
-                            background-color: #383838;
-                            color: #DDD;
-                            border: 1px solid #4D4D4D;
-                            border-radius: 14px;
-                            padding: 5px 12px;
-                            text-align: center;
-                            font-size: 12px;
-                            font-family: "Segoe UI", "Microsoft YaHei";
-                        }}
-                        QPushButton:hover {{
-                            background-color: {COLORS['danger']};
-                            border-color: {COLORS['danger']};
-                            color: white;
-                        }}
-                    """)
-                    btn.clicked.connect(lambda _, t=tag_name: self._remove_tag_from_selection(t))
-                    self.tag_list_layout.addWidget(btn)
+                    chip = TagChipWidget(tag_name)
+                    chip.deleted.connect(self._remove_tag_from_selection)
+                    self.tag_list_layout.addWidget(chip)
                     
         else:
             self.tag_panel_title.setText("🏷️ 最近标签")
