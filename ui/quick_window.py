@@ -798,17 +798,6 @@ class QuickWindow(QWidget):
             
         return prefix + text_part
 
-    def _create_color_icon(self, color_str):
-        pixmap = QPixmap(16, 16)
-        pixmap.fill(Qt.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setBrush(QColor(color_str or "#808080"))
-        painter.setPen(Qt.NoPen)
-        painter.drawRoundedRect(2, 2, 12, 12, 4, 4)
-        painter.end()
-        return QIcon(pixmap)
-
     def _update_partition_tree(self):
         current_selection_data = None
         if self.partition_tree.currentItem():
