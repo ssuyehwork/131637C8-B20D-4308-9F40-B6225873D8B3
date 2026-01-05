@@ -145,19 +145,6 @@ class Sidebar(QTreeWidget):
         finally:
             self.blockSignals(False)
 
-    def _create_color_icon(self, color_str):
-        pixmap = QPixmap(14, 14)
-        pixmap.fill(Qt.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.Antialiasing)
-        
-        c = QColor(color_str if color_str else "#808080")
-        painter.setBrush(c)
-        painter.setPen(Qt.NoPen)
-        painter.drawEllipse(1, 1, 12, 12)
-        painter.end()
-        return QIcon(pixmap)
-
     def _add_partition_recursive(self, partitions, parent_item, counts):
         for p in partitions:
             count = counts.get(p.id, 0)
@@ -165,7 +152,7 @@ class Sidebar(QTreeWidget):
             total_count = count + child_counts
 
             item = QTreeWidgetItem(parent_item, [f"{p.name} ({total_count})"])
-            item.setIcon(0, self._create_color_icon(p.color))
+            item.setIcon(0, create_color_icon(p.color))
             item.setData(0, Qt.UserRole, ('category', p.id))
             
             if p.children:
