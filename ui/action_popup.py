@@ -102,11 +102,11 @@ class ActionPopup(QWidget):
         
         # 刷新收藏按钮
         if is_favorite:
-            self.btn_fav.setText("★")
-            self.btn_fav.setStyleSheet(f"color: {COLORS['warning']}; border: none; font-size: 14px;")
+            self.btn_fav.setText("★") # 金色实心星
+            self.btn_fav.setStyleSheet(f"color: {COLORS['warning']}; border: none; font-size: 16px;")
         else:
-            self.btn_fav.setText("⭐")
-            self.btn_fav.setStyleSheet(f"QPushButton {{ background: transparent; color: #BBB; border: none; font-size: 14px; }} QPushButton:hover {{ color: {COLORS['warning']}; }}")
+            self.btn_fav.setText("☆") # 白色空心星
+            self.btn_fav.setStyleSheet(f"QPushButton {{ background: transparent; color: #BBB; border: none; font-size: 16px; }} QPushButton:hover {{ color: #FFFFFF; }}")
 
         # 动态调整尺寸
         self.container.adjustSize()
