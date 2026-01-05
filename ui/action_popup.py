@@ -1,1 +1,133 @@
-﻿# -*- coding: utf-8 -*-# ui/action_popup.pyimport osfrom PyQt5.QtWidgets import (QWidget, QHBoxLayout, QPushButton, QLabel,                              QGraphicsDropShadowEffect, QVBoxLayout, QFrame, QApplication)from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QPoint, QSizefrom PyQt5.QtGui import QCursor, QColor, QPixmapfrom core.config import COLORSfrom ui.common_tags import CommonTagsclass ActionPopup(QWidget):    """    复制成功后在鼠标附近弹出的快捷操作条    布局逻辑： [大 Logo] | [收藏] [常用标签...] [管理]    """    request_favorite = pyqtSignal(int)    request_tag_toggle = pyqtSignal(int, str, bool)     request_manager = pyqtSignal()    def __init__(self, parent=None):        super().__init__(parent)        self.current_idea_id = None        self.is_favorited = False                self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)        self.setAttribute(Qt.WA_TranslucentBackground)        self.setAttribute(Qt.WA_ShowWithoutActivating)                self._init_ui()                self.hide_timer = QTimer(self)        self.hide_timer.setSingleShot(True)        self.hide_timer.timeout.connect(self._animate_hide)    def _init_ui(self):        # 主容器        self.container = QWidget(self)        self.container.setStyleSheet(f"""            QWidget {{                background-color: #1E1E1E;                 border: 1px solid {COLORS['primary']};                 border-radius: 30px;            }}        """)                # 主布局        layout = QHBoxLayout(self.container)        layout.setContentsMargins(15, 8, 15, 8)        layout.setSpacing(12)                # --- 1. 左侧：超大 Logo (品牌区) ---        self.lbl_logo = QLabel()        self.lbl_logo.setFixedSize(42, 42)        self.lbl_logo.setAlignment(Qt.AlignCenter)        self.lbl_logo.setStyleSheet("border: none; background: transparent;")                logo_path = os.path.join("assets", "logo.svg")        if os.path.exists(logo_path):            pixmap = QPixmap(logo_path)            scaled_pixmap = pixmap.scaled(42, 42, Qt.KeepAspectRatio, Qt.SmoothTransformation)            self.lbl_logo.setPixmap(scaled_pixmap)        else:            self.lbl_logo.setText("⚡")            self.lbl_logo.setStyleSheet("border:none; font-size: 28px; color: #00F3FF;")                    layout.addWidget(self.lbl_logo)                # --- 2. 分割线 ---        line = QFrame()        line.setFrameShape(QFrame.VLine)        line.setFrameShadow(QFrame.Plain)        line.setFixedWidth(1)        line.setFixedHeight(30)        line.setStyleSheet("background-color: #444; border: none;")        layout.addWidget(line)        # --- 3. 右侧：操作区 (收藏 + 标签) ---        # 收藏按钮        self.btn_fav = QPushButton("☆")        self.btn_fav.setFixedSize(32, 32)        self.btn_fav.setToolTip("收藏")        self.btn_fav.setCursor(Qt.PointingHandCursor)        self.btn_fav.setStyleSheet(f"""            QPushButton {{                background: transparent;                 color: #BBB;                 border: 1px solid transparent;                 border-radius: 16px;                font-size: 20px;                 padding-bottom: 2px;            }}            QPushButton:hover {{                 color: {COLORS['warning']};                 background-color: rgba(255, 255, 255, 0.05);            }}        """)        self.btn_fav.clicked.connect(self._on_fav_clicked)        layout.addWidget(self.btn_fav)        # 常用标签栏        self.common_tags_bar = CommonTags()        self.common_tags_bar.tag_toggled.connect(self._on_tag_toggled)        self.common_tags_bar.manager_requested.connect(self._on_manager_clicked)        self.common_tags_bar.refresh_requested.connect(self._adjust_size_dynamically)                layout.addWidget(self.common_tags_bar)                # 阴影        shadow = QGraphicsDropShadowEffect(self)        shadow.setBlurRadius(25)        shadow.setXOffset(0)        shadow.setYOffset(6)        shadow.setColor(QColor(0, 0, 0, 160))        self.container.setGraphicsEffect(shadow)    def _adjust_size_dynamically(self):        if self.isVisible():            self.container.adjustSize()            self.resize(self.container.size() + QSize(30, 30))    def show_at_mouse(self, idea_id):        self.current_idea_id = idea_id        self.is_favorited = False                self.common_tags_bar.reload_tags()        self.common_tags_bar.reset_selection()                # 重置收藏按钮        self.btn_fav.setText("☆")        self.btn_fav.setStyleSheet(f"""            QPushButton {{                background: transparent; color: #BBB; border: 1px solid transparent; border-radius: 16px; font-size: 20px;            }}            QPushButton:hover {{ color: {COLORS['warning']}; background-color: rgba(255, 255, 255, 0.05); }}        """)                # 调整大小        self.container.adjustSize()        self.resize(self.container.size() + QSize(30, 30))                # --- 智能定位逻辑 (Smart Positioning) ---        cursor_pos = QCursor.pos()                # 获取当前屏幕几何信息        screen = QApplication.screenAt(cursor_pos)        if not screen:            screen = QApplication.primaryScreen()        screen_geo = screen.availableGeometry()                w = self.width()        h = self.height()                # 默认：显示在鼠标正上方，水平居中        # (水平居中：cursor.x - 窗口一半宽度)        x = cursor_pos.x() - (w // 2)        # (垂直上方：cursor.y - 窗口高度 - 间距)        y = cursor_pos.y() - h - 15                  # 1. 水平边缘检测与修正        # 如果左边超出了屏幕 (x < left)        if x < screen_geo.left() + 10:            x = screen_geo.left() + 10        # 如果右边超出了屏幕 (x + w > right) -> 这是您截图的情况        elif x + w > screen_geo.right() - 10:            x = screen_geo.right() - w - 10                    # 2. 垂直边缘检测与修正        # 如果上面超出了屏幕 (鼠标在顶端)，则改到鼠标下方显示        if y < screen_geo.top() + 10:            y = cursor_pos.y() + 30 # 显示在鼠标下方                self.move(x, y)        self.show()                self.hide_timer.start(3500)    def _on_fav_clicked(self):        if self.current_idea_id:            if not self.is_favorited:                self.request_favorite.emit(self.current_idea_id)                self.is_favorited = True                self.btn_fav.setText("★")                self.btn_fav.setStyleSheet(f"""                    QPushButton {{                        background: transparent; color: {COLORS['warning']}; border: 1px solid transparent; border-radius: 16px; font-size: 20px;                    }}                """)                        if self.underMouse():                self.hide_timer.stop()            else:                self.hide_timer.start(1500)    def _on_tag_toggled(self, tag_name, checked):        if self.current_idea_id:            self.request_tag_toggle.emit(self.current_idea_id, tag_name, checked)                        if self.underMouse():                self.hide_timer.stop()            else:                self.hide_timer.start(1500)    def _on_manager_clicked(self):        self.request_manager.emit()        self.hide()    def _animate_hide(self):        self.hide()    def enterEvent(self, event):        self.hide_timer.stop()        super().enterEvent(event)    def leaveEvent(self, event):        self.hide_timer.start(1000)        super().leaveEvent(event)
+# -*- coding: utf-8 -*-
+# ui/action_popup.py
+
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel, QGraphicsDropShadowEffect
+from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QPoint, QSize
+from PyQt5.QtGui import QCursor, QColor
+from core.config import COLORS
+from ui.common_tags import CommonTags
+from ui.success_animation import SuccessAnimationWidget
+
+class ActionPopup(QWidget):
+    """
+    复制成功后在鼠标附近弹出的快捷操作条
+    包含：[图标] | [收藏] [自定义常用标签] [管理]
+    """
+    request_favorite = pyqtSignal(int)
+    request_tag_add = pyqtSignal(int, str)
+    request_manager = pyqtSignal() # 请求打开管理界面
+
+    def __init__(self, parent=None): # 不再需要 db
+        super().__init__(parent)
+        self.current_idea_id = None
+        
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        
+        self._init_ui()
+        
+        self.hide_timer = QTimer(self)
+        self.hide_timer.setSingleShot(True)
+        self.hide_timer.timeout.connect(self._animate_hide)
+
+    def _init_ui(self):
+        self.container = QWidget(self)
+        self.container.setStyleSheet(f"""
+            QWidget {{
+                background-color: #2D2D2D;
+                border: 1px solid #444;
+                border-radius: 18px;
+            }}
+        """)
+        
+        layout = QHBoxLayout(self.container)
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.setSpacing(10)
+        
+        self.success_animation = SuccessAnimationWidget()
+        layout.addWidget(self.success_animation)
+        
+        line = QLabel("|")
+        line.setStyleSheet("color: #555; border:none; background: transparent;")
+        layout.addWidget(line)
+
+        self.btn_fav = QPushButton("⭐")
+        self.btn_fav.setToolTip("收藏")
+        self.btn_fav.setCursor(Qt.PointingHandCursor)
+        self.btn_fav.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent; color: #BBB; border: none; font-size: 14px; font-weight: bold; padding: 0px;
+            }}
+            QPushButton:hover {{ color: {COLORS['warning']}; }}
+        """)
+        self.btn_fav.clicked.connect(self._on_fav_clicked)
+        layout.addWidget(self.btn_fav)
+
+        # 常用标签组件
+        self.common_tags_bar = CommonTags()
+        self.common_tags_bar.tag_clicked.connect(self._on_quick_tag_clicked)
+        # 点击编辑按钮 -> 请求打开管理界面
+        self.common_tags_bar.manager_requested.connect(self._on_manager_clicked)
+        self.common_tags_bar.refresh_requested.connect(self._adjust_size_dynamically)
+        
+        layout.addWidget(self.common_tags_bar)
+        
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(15)
+        shadow.setXOffset(0)
+        shadow.setYOffset(4)
+        shadow.setColor(QColor(0, 0, 0, 120))
+        self.container.setGraphicsEffect(shadow)
+
+    def _adjust_size_dynamically(self):
+        if self.isVisible():
+            self.container.adjustSize()
+            self.resize(self.container.size() + QSize(10, 10))
+
+    def show_at_mouse(self, idea_id):
+        self.current_idea_id = idea_id
+        self.common_tags_bar.reload_tags()
+        
+        self.success_animation.start()
+        
+        self.btn_fav.setText("⭐")
+        self.btn_fav.setStyleSheet(f"QPushButton {{ background: transparent; color: #BBB; border: none; font-size: 14px; }} QPushButton:hover {{ color: {COLORS['warning']}; }}")
+        
+        self.container.adjustSize()
+        self.resize(self.container.size() + QSize(10, 10))
+        
+        cursor_pos = QCursor.pos()
+        x = cursor_pos.x() - self.width() // 2
+        y = cursor_pos.y() - 60 
+        
+        self.move(x, y)
+        self.show()
+        self.hide_timer.start(3500)
+
+    def _on_fav_clicked(self):
+        if self.current_idea_id:
+            self.request_favorite.emit(self.current_idea_id)
+            self.btn_fav.setText("★")
+            self.btn_fav.setStyleSheet(f"color: {COLORS['warning']}; border: none; font-size: 14px;")
+            self.hide_timer.start(1000)
+
+    def _on_quick_tag_clicked(self, tag_name):
+        if self.current_idea_id:
+            self.request_tag_add.emit(self.current_idea_id, tag_name)
+            self.hide_timer.start(2500) 
+
+    def _on_manager_clicked(self):
+        self.request_manager.emit()
+        self.hide() # 打开管理界面时，隐藏悬浮条
+
+    def _animate_hide(self):
+        self.hide()
+
+    def enterEvent(self, event):
+        self.hide_timer.stop()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.hide_timer.start(1500)
+        super().leaveEvent(event)
