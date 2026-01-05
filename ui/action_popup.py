@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 # ui/action_popup.py
 
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel, QGraphicsDropShadowEffect
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel, QGraphicsDropShadowEffect, QApplication
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QPoint, QSize
 from PyQt5.QtGui import QCursor, QColor
 from core.config import COLORS
 from ui.common_tags import CommonTags
-from ui.success_animation import SuccessAnimationWidget
+from ui.writing_animation import WritingAnimationWidget
 
 class ActionPopup(QWidget):
     """
@@ -14,11 +14,12 @@ class ActionPopup(QWidget):
     包含：[图标] | [收藏] [自定义常用标签] [管理]
     """
     request_favorite = pyqtSignal(int)
-    request_tag_add = pyqtSignal(int, str)
-    request_manager = pyqtSignal() # 请求打开管理界面
+    request_tag_toggle = pyqtSignal(int, str) # 改回 toggle
+    request_manager = pyqtSignal()
 
-    def __init__(self, parent=None): # 不再需要 db
+    def __init__(self, db_manager, parent=None):
         super().__init__(parent)
+        self.db_manager = db_manager
         self.current_idea_id = None
         
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
@@ -44,8 +45,8 @@ class ActionPopup(QWidget):
         layout = QHBoxLayout(self.container)
         layout.setContentsMargins(12, 6, 12, 6)
         layout.setSpacing(10)
-        
-        self.success_animation = SuccessAnimationWidget()
+
+        self.success_animation = WritingAnimationWidget()
         layout.addWidget(self.success_animation)
         
         line = QLabel("|")
@@ -65,9 +66,8 @@ class ActionPopup(QWidget):
         layout.addWidget(self.btn_fav)
 
         # 常用标签组件
-        self.common_tags_bar = CommonTags()
+        self.common_tags_bar = CommonTags(self.db_manager)
         self.common_tags_bar.tag_clicked.connect(self._on_quick_tag_clicked)
-        # 点击编辑按钮 -> 请求打开管理界面
         self.common_tags_bar.manager_requested.connect(self._on_manager_clicked)
         self.common_tags_bar.refresh_requested.connect(self._adjust_size_dynamically)
         
@@ -85,22 +85,55 @@ class ActionPopup(QWidget):
             self.container.adjustSize()
             self.resize(self.container.size() + QSize(10, 10))
 
-    def show_at_mouse(self, idea_id):
-        self.current_idea_id = idea_id
-        self.common_tags_bar.reload_tags()
+    def _refresh_ui_state(self):
+        """仅刷新UI元素的状态（颜色、文本等），不移动窗口"""
+        if not self.current_idea_id:
+            return
+
+        idea_data = self.db_manager.get_idea(self.current_idea_id)
+        if not idea_data:
+            return
+            
+        is_favorite = idea_data[5] == 1
+        active_tags = self.db_manager.get_tags(self.current_idea_id)
+
+        # 刷新标签栏
+        self.common_tags_bar.reload_tags(active_tags)
         
-        self.success_animation.start()
+        # 刷新收藏按钮
+        if is_favorite:
+            self.btn_fav.setText("★") # 金色实心星
+            self.btn_fav.setStyleSheet(f"color: {COLORS['warning']}; border: none; font-size: 16px;")
+        else:
+            self.btn_fav.setText("☆") # 白色空心星
+            self.btn_fav.setStyleSheet(f"QPushButton {{ background: transparent; color: #BBB; border: none; font-size: 16px; }} QPushButton:hover {{ color: #FFFFFF; }}")
         
-        self.btn_fav.setText("⭐")
-        self.btn_fav.setStyleSheet(f"QPushButton {{ background: transparent; color: #BBB; border: none; font-size: 14px; }} QPushButton:hover {{ color: {COLORS['warning']}; }}")
-        
+        # 动态调整尺寸
         self.container.adjustSize()
         self.resize(self.container.size() + QSize(10, 10))
+
+    def show_at_mouse(self, idea_id):
+        self.current_idea_id = idea_id
         
+        self.success_animation.start()
+        self._refresh_ui_state() # 设置初始状态
+
         cursor_pos = QCursor.pos()
-        x = cursor_pos.x() - self.width() // 2
-        y = cursor_pos.y() - 60 
+        screen_geometry = QApplication.screenAt(cursor_pos).geometry()
         
+        x = cursor_pos.x() - self.width() // 2
+        y = cursor_pos.y() - self.height() - 20
+
+        if x < screen_geometry.left():
+            x = screen_geometry.left()
+        elif x + self.width() > screen_geometry.right():
+            x = screen_geometry.right() - self.width()
+            
+        if y < screen_geometry.top():
+            y = cursor_pos.y() + 25
+            if y + self.height() > screen_geometry.bottom():
+                y = screen_geometry.bottom() - self.height()
+
         self.move(x, y)
         self.show()
         self.hide_timer.start(3500)
@@ -108,14 +141,14 @@ class ActionPopup(QWidget):
     def _on_fav_clicked(self):
         if self.current_idea_id:
             self.request_favorite.emit(self.current_idea_id)
-            self.btn_fav.setText("★")
-            self.btn_fav.setStyleSheet(f"color: {COLORS['warning']}; border: none; font-size: 14px;")
-            self.hide_timer.start(1000)
+            self._refresh_ui_state() # 只刷新UI，不移动
+            self.hide_timer.start(1500)
 
     def _on_quick_tag_clicked(self, tag_name):
         if self.current_idea_id:
-            self.request_tag_add.emit(self.current_idea_id, tag_name)
-            self.hide_timer.start(2500) 
+            self.request_tag_toggle.emit(self.current_idea_id, tag_name)
+            self._refresh_ui_state() # 只刷新UI，不移动
+            self.hide_timer.start(3500)
 
     def _on_manager_clicked(self):
         self.request_manager.emit()
