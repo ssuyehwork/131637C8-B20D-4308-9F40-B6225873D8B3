@@ -85,20 +85,22 @@ class ActionPopup(QWidget):
             self.container.adjustSize()
             self.resize(self.container.size() + QSize(10, 10))
 
-    def show_at_mouse(self, idea_id):
-        self.current_idea_id = idea_id
-        
-        # 获取笔记信息
-        idea_data = self.db_manager.get_idea(idea_id)
-        if not idea_data: return
-        is_favorite = idea_data[5] == 1
-        active_tags = self.db_manager.get_tags(idea_id)
+    def _refresh_ui_state(self):
+        """仅刷新UI元素的状态（颜色、文本等），不移动窗口"""
+        if not self.current_idea_id:
+            return
 
+        idea_data = self.db_manager.get_idea(self.current_idea_id)
+        if not idea_data:
+            return
+
+        is_favorite = idea_data[5] == 1
+        active_tags = self.db_manager.get_tags(self.current_idea_id)
+
+        # 刷新标签栏
         self.common_tags_bar.reload_tags(active_tags)
         
-        self.success_animation.start()
-        
-        # 根据收藏状态设置按钮样式
+        # 刷新收藏按钮
         if is_favorite:
             self.btn_fav.setText("★")
             self.btn_fav.setStyleSheet(f"color: {COLORS['warning']}; border: none; font-size: 14px;")
@@ -106,28 +108,29 @@ class ActionPopup(QWidget):
             self.btn_fav.setText("⭐")
             self.btn_fav.setStyleSheet(f"QPushButton {{ background: transparent; color: #BBB; border: none; font-size: 14px; }} QPushButton:hover {{ color: {COLORS['warning']}; }}")
 
+        # 动态调整尺寸
         self.container.adjustSize()
         self.resize(self.container.size() + QSize(10, 10))
+
+    def show_at_mouse(self, idea_id):
+        self.current_idea_id = idea_id
         
+        self.success_animation.start()
+        self._refresh_ui_state() # 设置初始状态
+
         cursor_pos = QCursor.pos()
         screen_geometry = QApplication.screenAt(cursor_pos).geometry()
         
-        # 初始位置计算
         x = cursor_pos.x() - self.width() // 2
-        y = cursor_pos.y() - self.height() - 20 # 默认在鼠标上方显示，并保持20px间距
+        y = cursor_pos.y() - self.height() - 20
 
-        # --- 边界检测与修正 ---
-        # 水平方向
         if x < screen_geometry.left():
             x = screen_geometry.left()
         elif x + self.width() > screen_geometry.right():
             x = screen_geometry.right() - self.width()
 
-        # 垂直方向
         if y < screen_geometry.top():
-            # 如果上方空间不足，尝试在鼠标下方显示
-            y = cursor_pos.y() + 25 # 鼠标指针的高度约为20-25px
-            # 再次检查下方是否超出边界
+            y = cursor_pos.y() + 25
             if y + self.height() > screen_geometry.bottom():
                 y = screen_geometry.bottom() - self.height()
 
@@ -138,16 +141,13 @@ class ActionPopup(QWidget):
     def _on_fav_clicked(self):
         if self.current_idea_id:
             self.request_favorite.emit(self.current_idea_id)
-            self.btn_fav.setText("★")
-            self.btn_fav.setStyleSheet(f"color: {COLORS['warning']}; border: none; font-size: 14px;")
-            self.hide_timer.start(1000)
+            self._refresh_ui_state() # 只刷新UI，不移动
+            self.hide_timer.start(1500)
 
     def _on_quick_tag_clicked(self, tag_name):
         if self.current_idea_id:
             self.request_tag_toggle.emit(self.current_idea_id, tag_name)
-
-            # 刷新 popup 自身以立即反映状态变化
-            self.show_at_mouse(self.current_idea_id)
+            self._refresh_ui_state() # 只刷新UI，不移动
             self.hide_timer.start(3500)
 
     def _on_manager_clicked(self):

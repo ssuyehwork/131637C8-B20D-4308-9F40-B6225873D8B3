@@ -156,7 +156,12 @@ class AppManager(QObject):
             self.popup.show_at_mouse(idea_id)
 
     def _handle_popup_favorite(self, idea_id):
-        self.db_manager.set_favorite(idea_id, True)
+        idea_data = self.db_manager.get_idea(idea_id)
+        if not idea_data: return
+
+        is_favorite = idea_data[5] == 1
+        self.db_manager.set_favorite(idea_id, not is_favorite) # 切换状态
+
         if self.main_window.isVisible():
             self.main_window._load_data()
             self.main_window.sidebar.refresh()
