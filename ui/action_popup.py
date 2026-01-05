@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # ui/action_popup.py
 
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel, QGraphicsDropShadowEffect
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel, QGraphicsDropShadowEffect, QApplication
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QPoint, QSize
 from PyQt5.QtGui import QCursor, QColor
 from core.config import COLORS
@@ -98,9 +98,27 @@ class ActionPopup(QWidget):
         self.resize(self.container.size() + QSize(10, 10))
         
         cursor_pos = QCursor.pos()
-        x = cursor_pos.x() - self.width() // 2
-        y = cursor_pos.y() - 60 
+        screen_geometry = QApplication.screenAt(cursor_pos).geometry()
         
+        # 初始位置计算
+        x = cursor_pos.x() - self.width() // 2
+        y = cursor_pos.y() - self.height() - 20 # 默认在鼠标上方显示，并保持20px间距
+
+        # --- 边界检测与修正 ---
+        # 水平方向
+        if x < screen_geometry.left():
+            x = screen_geometry.left()
+        elif x + self.width() > screen_geometry.right():
+            x = screen_geometry.right() - self.width()
+
+        # 垂直方向
+        if y < screen_geometry.top():
+            # 如果上方空间不足，尝试在鼠标下方显示
+            y = cursor_pos.y() + 25 # 鼠标指针的高度约为20-25px
+            # 再次检查下方是否超出边界
+            if y + self.height() > screen_geometry.bottom():
+                y = screen_geometry.bottom() - self.height()
+
         self.move(x, y)
         self.show()
         self.hide_timer.start(3500)
