@@ -5,7 +5,7 @@ import time
 import os
 from PyQt5.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QDialog
 from PyQt5.QtCore import QObject, Qt
-from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtGui import QIcon
 from PyQt5.QtNetwork import QLocalServer, QLocalSocket
 from ui.quick_window import QuickWindow
 from ui.main_window import MainWindow
@@ -38,9 +38,12 @@ class AppManager(QObject):
             pass
             sys.exit(1)
 
-        # The icon will be generated dynamically later
-        app_icon = QIcon()
-        self.app.setWindowIcon(app_icon)
+        logo_path = os.path.join("assets", "logo.svg")
+        if os.path.exists(logo_path):
+            app_icon = QIcon(logo_path)
+            self.app.setWindowIcon(app_icon)
+        else:
+            app_icon = QIcon()
         
         self.app.setApplicationName("")
         self.app.setApplicationDisplayName("")
@@ -54,12 +57,29 @@ class AppManager(QObject):
 
         self.ball = FloatingBall(self.main_window)
         
-        # Connect signals from the FloatingBall to the AppManager's slots
+        original_context_menu = self.ball.contextMenuEvent
+        def new_context_menu(e):
+            m = QMenu(self.ball)
+            m.setStyleSheet("""
+                QMenu { background-color: #1a1a1a; color: #00f3ff; border: 1px solid #333; padding: 5px; }
+                QMenu::item { padding: 5px 20px; }
+                QMenu::item:selected { background-color: #00f3ff; color: #000; border-radius: 2px;}
+                QMenu::separator { background-color: #333; height: 1px; margin: 5px 0; }
+            """)
+            m.addAction('⚡ 打开快速笔记', self.ball.request_show_quick_window.emit)
+            m.addAction('💻 打开主界面', self.ball.request_show_main_window.emit)
+            m.addAction('➕ 新建灵感', self.main_window.new_idea)
+            m.addSeparator()
+            m.addAction('🏷️ 管理常用标签', self._open_common_tags_manager)
+            m.addSeparator()
+            m.addAction('❌ 退出', self.ball.request_quit_app.emit)
+            m.exec_(e.globalPos())
+
+        self.ball.contextMenuEvent = new_context_menu
         self.ball.request_show_quick_window.connect(self.show_quick_window)
         self.ball.double_clicked.connect(self.show_quick_window)
         self.ball.request_show_main_window.connect(self.show_main_window)
         self.ball.request_quit_app.connect(self.quit_application)
-        self.ball.request_manage_tags.connect(self._open_common_tags_manager)
         
         ball_pos = load_setting('floating_ball_pos')
         if ball_pos and isinstance(ball_pos, dict) and 'x' in ball_pos and 'y' in ball_pos:
@@ -84,25 +104,8 @@ class AppManager(QObject):
         self.show_quick_window()
 
     def _init_tray_icon(self, icon):
-        # Dynamically generate the icon from the FloatingBall widget
-        temp_ball = FloatingBall(None)
-        temp_ball.timer.stop() # Stop animation for a clean render
-        temp_ball.is_writing = False
-        temp_ball.pen_angle = -45
-        temp_ball.pen_x = 0
-        temp_ball.pen_y = 0
-        temp_ball.book_y = 0
-
-        pixmap = QPixmap(temp_ball.size())
-        pixmap.fill(Qt.transparent)
-        temp_ball.render(pixmap)
-
-        dynamic_icon = QIcon(pixmap)
-
-        # Set for both app and tray
-        self.app.setWindowIcon(dynamic_icon)
         self.tray_icon = QSystemTrayIcon(self.app)
-        self.tray_icon.setIcon(dynamic_icon)
+        self.tray_icon.setIcon(icon)
         self.tray_icon.setToolTip("快速笔记")
         
         menu = QMenu()
@@ -157,23 +160,19 @@ class AppManager(QObject):
         if not idea_data: return
 
         is_favorite = idea_data[5] == 1
-        self.db_manager.set_favorite(idea_id, not is_favorite) # 切换状态
+        self.db_manager.set_favorite(idea_id, not is_favorite)
 
         if self.main_window.isVisible():
             self.main_window._load_data()
             self.main_window.sidebar.refresh()
 
     def _handle_popup_tag_toggle(self, idea_id, tag_name):
-        # 检查当前标签是否存在
         current_tags = self.db_manager.get_tags(idea_id)
         if tag_name in current_tags:
-            # 如果存在，则移除
             self.db_manager.remove_tag_from_multiple_ideas([idea_id], tag_name)
         else:
-            # 如果不存在，则添加
             self.db_manager.add_tags_to_multiple_ideas([idea_id], [tag_name])
             
-        # 如果主窗口可见，刷新其数据
         if self.main_window.isVisible():
             self.main_window._load_data()
             self.main_window._refresh_tag_panel()

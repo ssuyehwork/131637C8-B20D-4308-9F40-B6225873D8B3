@@ -770,7 +770,7 @@ class MainWindow(QWidget):
                     bg_color = COLORS['success']
                     border_color = COLORS['success']
                     text_color = 'white'
-                    hover_bg_color = '#27ae60' # A slightly darker green for hover
+                    hover_bg_color = '#27ae60'
                     hover_border_color = '#27ae60'
                 else:
                     bg_color = '#333333'

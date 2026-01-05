@@ -29,23 +29,19 @@ class CommonTags(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
 
     def reload_tags(self, active_tags=None):
-        if active_tags is None:
-            active_tags = []
+        if active_tags is None: active_tags = []
 
         while self.layout.count():
             item = self.layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            if item.widget(): item.widget().deleteLater()
 
         raw_tags = load_setting('manual_common_tags', ['工作', '待办', '重要'])
         limit = load_setting('common_tags_limit', 5)
 
         processed_tags = []
         for item in raw_tags:
-            if isinstance(item, str):
-                processed_tags.append({'name': item, 'visible': True})
-            elif isinstance(item, dict):
-                processed_tags.append(item)
+            if isinstance(item, str): processed_tags.append({'name': item, 'visible': True})
+            elif isinstance(item, dict): processed_tags.append(item)
         
         visible_tags = [t for t in processed_tags if t.get('visible', True)]
         display_tags = visible_tags[:limit]
@@ -57,7 +53,6 @@ class CommonTags(QWidget):
 
             is_active = name in active_tags
 
-            # 根据是否激活设置不同样式
             if is_active:
                 style = f"""
                     QPushButton {{
@@ -67,8 +62,7 @@ class CommonTags(QWidget):
                         border-radius: 10px; padding: 2px 8px; font-size: 11px; min-height: 20px; max-width: 80px;
                     }}
                     QPushButton:hover {{
-                        background-color: #27ae60; /* 悬停时用稍暗的绿色 */
-                        border-color: #27ae60;
+                        background-color: #27ae60; border-color: #27ae60;
                     }}
                 """
             else:
@@ -86,7 +80,6 @@ class CommonTags(QWidget):
             btn.clicked.connect(lambda _, n=name: self.tag_clicked.emit(n))
             self.layout.addWidget(btn)
 
-        # 编辑按钮 (始终显示在最后)
         btn_edit = QPushButton("✎")
         btn_edit.setToolTip("管理常用标签 (排序/显隐/数量)")
         btn_edit.setCursor(Qt.PointingHandCursor)
