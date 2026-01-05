@@ -61,13 +61,14 @@ class CommonTags(QWidget):
             if is_active:
                 style = f"""
                     QPushButton {{
-                        background-color: {COLORS['primary']};
+                        background-color: {COLORS['success']};
                         color: white;
-                        border: 1px solid {COLORS['primary']};
+                        border: 1px solid {COLORS['success']};
                         border-radius: 10px; padding: 2px 8px; font-size: 11px; min-height: 20px; max-width: 80px;
                     }}
                     QPushButton:hover {{
-                        background-color: #D32F2F; border-color: #D32F2F; /* 悬停时变暗红色表示取消 */
+                        background-color: #27ae60; /* 悬停时用稍暗的绿色 */
+                        border-color: #27ae60;
                     }}
                 """
             else:

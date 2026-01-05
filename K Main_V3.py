@@ -54,44 +54,12 @@ class AppManager(QObject):
 
         self.ball = FloatingBall(self.main_window)
         
-        # 新的 ball.py 自带菜单，这里只需连接信号
-        # 如果需要在新菜单中添加额外项，需要修改 ball.py 的 contextMenuEvent
-        # 暂时将“管理常用标签”这个功能加回
-        original_context_menu = self.ball.contextMenuEvent
-
-        def enhanced_context_menu(e):
-            # 先执行原始菜单创建
-            m = QMenu(self.ball)
-            m.setStyleSheet("""
-                QMenu { background-color: #2b2b2b; color: #f0f0f0; border: 1px solid #444; border-radius: 5px; }
-                QMenu::item { padding: 6px 25px; }
-                QMenu::item:selected { background-color: #5D4037; color: #fff; }
-                QMenu::separator { background-color: #444; height: 1px; margin: 4px 0; }
-            """)
-
-            skin_menu = m.addMenu("🎨  切换外观")
-            a1 = skin_menu.addAction("☕  摩卡·勃艮第"); a1.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_MOCHA))
-            a2 = skin_menu.addAction("♟️  经典黑金"); a2.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_CLASSIC))
-            a3 = skin_menu.addAction("📘  皇家蓝"); a3.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_ROYAL))
-            a4 = skin_menu.addAction("🍵  抹茶绿"); a4.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_MATCHA))
-            a5 = skin_menu.addAction("📖  摊开手稿"); a5.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_OPEN))
-
-            m.addSeparator()
-            m.addAction('⚡ 打开快速笔记', self.ball.request_show_quick_window.emit)
-            m.addAction('💻 打开主界面', self.ball.request_show_main_window.emit)
-            m.addAction('➕ 新建灵感', self.main_window.new_idea)
-            m.addSeparator()
-            m.addAction('🏷️ 管理常用标签', self._open_common_tags_manager) # 加回来
-            m.addSeparator()
-            m.addAction('❌ 退出', self.ball.request_quit_app.emit)
-
-            m.exec_(e.globalPos())
-
-        self.ball.contextMenuEvent = enhanced_context_menu
+        # Connect signals from the FloatingBall to the AppManager's slots
         self.ball.request_show_quick_window.connect(self.show_quick_window)
         self.ball.double_clicked.connect(self.show_quick_window)
         self.ball.request_show_main_window.connect(self.show_main_window)
         self.ball.request_quit_app.connect(self.quit_application)
+        self.ball.request_manage_tags.connect(self._open_common_tags_manager)
         
         ball_pos = load_setting('floating_ball_pos')
         if ball_pos and isinstance(ball_pos, dict) and 'x' in ball_pos and 'y' in ball_pos:
