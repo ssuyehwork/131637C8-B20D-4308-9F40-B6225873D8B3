@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # ui/sidebar.py
+import random
 from PyQt5.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QInputDialog, 
                              QFrame, QColorDialog, QDialog, QVBoxLayout, QLabel, QLineEdit, 
                              QPushButton, QHBoxLayout, QApplication, QWidget)
@@ -271,6 +272,7 @@ class Sidebar(QTreeWidget):
             menu.addAction('➕ 数据', lambda: self._request_new_data(cat_id))
             menu.addSeparator()
             menu.addAction('🎨 设置颜色', lambda: self._change_color(cat_id))
+            menu.addAction('🎲 随机颜色', lambda: self._set_random_color(cat_id))
             menu.addAction('🏷️ 设置预设标签', lambda: self._set_preset_tags(cat_id))
             menu.addSeparator()
             menu.addAction('➕ 组', self._new_group)
@@ -337,8 +339,33 @@ class Sidebar(QTreeWidget):
     def _change_color(self, cat_id):
         color = QColorDialog.getColor(Qt.gray, self, "选择分类颜色")
         if color.isValid():
-            self.db.set_category_color(cat_id, color.name())
-            self.refresh()
+            color_name = color.name()
+            self.db.set_category_color(cat_id, color_name)
+            
+            # 直接更新当前项的图标，而不是刷新整个树
+            item = self.currentItem()
+            if item and item.data(0, Qt.UserRole) == ('category', cat_id):
+                item.setIcon(0, self._create_color_icon(color_name))
+
+    def _set_random_color(self, cat_id):
+        r = random.randint(0, 255)
+        g = random.randint(0, 255)
+        b = random.randint(0, 255)
+        color = QColor(r, g, b)
+        
+        # 确保颜色不会太暗
+        while color.lightness() < 80:
+            r = random.randint(0, 255)
+            g = random.randint(0, 255)
+            b = random.randint(0, 255)
+            color = QColor(r, g, b)
+            
+        color_name = color.name()
+        self.db.set_category_color(cat_id, color_name)
+        
+        item = self.currentItem()
+        if item and item.data(0, Qt.UserRole) == ('category', cat_id):
+            item.setIcon(0, self._create_color_icon(color_name))
 
     def _request_new_data(self, cat_id):
         self.new_data_requested.emit(cat_id)

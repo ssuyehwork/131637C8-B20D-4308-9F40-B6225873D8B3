@@ -216,10 +216,6 @@ class SearchHistoryPopup(QWidget):
         scroll.setStyleSheet("""
             QScrollArea { background-color: transparent; border: none; }
             QScrollArea > QWidget > QWidget { background-color: transparent; }
-            QScrollBar:vertical { background: #252526; width: 6px; margin: 0; }
-            QScrollBar::handle:vertical { background: #444; border-radius: 3px; min-height: 20px; }
-            QScrollBar::handle:vertical:hover { background: #555; }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
         """)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
