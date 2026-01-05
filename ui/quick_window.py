@@ -13,12 +13,13 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QListWidget, QL
                              QLabel, QTreeWidgetItemIterator, QShortcut, QAbstractItemView, QMenu,
                              QColorDialog, QInputDialog, QMessageBox)
 from PyQt5.QtCore import Qt, QTimer, QPoint, QRect, QSettings, QUrl, QMimeData, pyqtSignal, QObject, QSize, QByteArray
-from PyQt5.QtGui import QImage, QColor, QCursor, QPixmap, QPainter, QIcon, QKeySequence, QDrag
+from PyQt5.QtGui import QImage, QColor, QCursor, QIcon, QKeySequence, QDrag
 from services.preview_service import PreviewService
 from ui.dialogs import EditDialog
 from ui.advanced_tag_selector import AdvancedTagSelector
 from core.config import COLORS
 from core.settings import load_setting, save_setting
+from ui.utils import create_color_icon
 
 # ... (Win32 API 定义部分保持不变) ...
 if sys.platform == "win32":

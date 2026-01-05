@@ -5,9 +5,10 @@ from PyQt5.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, Q
                              QFrame, QColorDialog, QDialog, QVBoxLayout, QLabel, QLineEdit, 
                              QPushButton, QHBoxLayout, QApplication, QWidget)
 from PyQt5.QtCore import Qt, pyqtSignal, QSize, QEvent, QTimer
-from PyQt5.QtGui import QFont, QColor, QPixmap, QPainter, QIcon, QCursor
+from PyQt5.QtGui import QFont, QColor, QIcon, QCursor
 from core.config import COLORS
 from ui.advanced_tag_selector import AdvancedTagSelector
+from ui.utils import create_color_icon
 
 class ClickableLineEdit(QLineEdit):
     doubleClicked = pyqtSignal()
@@ -340,9 +341,12 @@ class Sidebar(QTreeWidget):
         color = QColorDialog.getColor(Qt.gray, self, "选择分类颜色")
         if color.isValid():
             color_name = color.name()
+            # This now recursively updates all children and their ideas
             self.db.set_category_color(cat_id, color_name)
             
+            # Refresh the entire sidebar to show color changes on all affected items
             self.refresh()
+            # Emit a global signal to tell the main window to reload its idea cards
             self.data_changed.emit()
 
     def _set_random_color(self, cat_id):
@@ -351,7 +355,7 @@ class Sidebar(QTreeWidget):
         b = random.randint(0, 255)
         color = QColor(r, g, b)
         
-        # 确保颜色不会太暗
+        # Ensure the color is not too dark to be visible
         while color.lightness() < 80:
             r = random.randint(0, 255)
             g = random.randint(0, 255)
@@ -359,9 +363,12 @@ class Sidebar(QTreeWidget):
             color = QColor(r, g, b)
             
         color_name = color.name()
+        # This now recursively updates all children and their ideas
         self.db.set_category_color(cat_id, color_name)
         
+        # Refresh the entire sidebar to show color changes on all affected items
         self.refresh()
+        # Emit a global signal to tell the main window to reload its idea cards
         self.data_changed.emit()
 
     def _request_new_data(self, cat_id):
