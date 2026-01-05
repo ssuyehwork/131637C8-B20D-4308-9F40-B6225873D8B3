@@ -122,6 +122,7 @@ class TagChipWidget(QWidget):
         super().__init__(parent)
         self.tag_name = tag_name
         self.setObjectName("TagChip")
+        self.setAttribute(Qt.WA_StyledBackground, True)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 5, 5, 5)
