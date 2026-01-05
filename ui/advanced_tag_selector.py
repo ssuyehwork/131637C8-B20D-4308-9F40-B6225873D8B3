@@ -165,10 +165,6 @@ class AdvancedTagSelector(QWidget):
         scroll.setStyleSheet("""
             QScrollArea { border: none; background: transparent; }
             QWidget { background: transparent; }
-            QScrollBar:vertical {
-                border: none; background: #2D2D2D; width: 6px; margin: 0;
-            }
-            QScrollBar::handle:vertical { background: #555; border-radius: 3px; }
         """)
         
         self.scroll_content = QWidget()
