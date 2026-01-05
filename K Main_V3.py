@@ -94,9 +94,9 @@ class AppManager(QObject):
         # 连接到 toggle_main_window
         self.quick_window.toggle_main_window_requested.connect(self.toggle_main_window)
         
-        self.popup = ActionPopup() 
+        self.popup = ActionPopup(self.db_manager)
         self.popup.request_favorite.connect(self._handle_popup_favorite)
-        self.popup.request_tag_add.connect(self._handle_popup_tag_add)
+        self.popup.request_tag_toggle.connect(self._handle_popup_tag_toggle)
         self.popup.request_manager.connect(self._open_common_tags_manager)
         
         self.quick_window.cm.data_captured.connect(self._on_clipboard_data_captured)
@@ -161,9 +161,17 @@ class AppManager(QObject):
             self.main_window._load_data()
             self.main_window.sidebar.refresh()
 
-    def _handle_popup_tag_add(self, idea_id, tag_name):
-        self.db_manager.add_tags_to_multiple_ideas([idea_id], [tag_name])
+    def _handle_popup_tag_toggle(self, idea_id, tag_name):
+        # 检查当前标签是否存在
+        current_tags = self.db_manager.get_tags(idea_id)
+        if tag_name in current_tags:
+            # 如果存在，则移除
+            self.db_manager.remove_tag_from_multiple_ideas([idea_id], tag_name)
+        else:
+            # 如果不存在，则添加
+            self.db_manager.add_tags_to_multiple_ideas([idea_id], [tag_name])
             
+        # 如果主窗口可见，刷新其数据
         if self.main_window.isVisible():
             self.main_window._load_data()
             self.main_window._refresh_tag_panel()

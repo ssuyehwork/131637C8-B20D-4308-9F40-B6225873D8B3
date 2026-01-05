@@ -14,11 +14,12 @@ class ActionPopup(QWidget):
     包含：[图标] | [收藏] [自定义常用标签] [管理]
     """
     request_favorite = pyqtSignal(int)
-    request_tag_add = pyqtSignal(int, str)
-    request_manager = pyqtSignal() # 请求打开管理界面
+    request_tag_toggle = pyqtSignal(int, str) # 改回 toggle
+    request_manager = pyqtSignal()
 
-    def __init__(self, parent=None): # 不再需要 db
+    def __init__(self, db_manager, parent=None):
         super().__init__(parent)
+        self.db_manager = db_manager
         self.current_idea_id = None
         
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
@@ -65,9 +66,8 @@ class ActionPopup(QWidget):
         layout.addWidget(self.btn_fav)
 
         # 常用标签组件
-        self.common_tags_bar = CommonTags()
+        self.common_tags_bar = CommonTags(self.db_manager)
         self.common_tags_bar.tag_clicked.connect(self._on_quick_tag_clicked)
-        # 点击编辑按钮 -> 请求打开管理界面
         self.common_tags_bar.manager_requested.connect(self._on_manager_clicked)
         self.common_tags_bar.refresh_requested.connect(self._adjust_size_dynamically)
         
@@ -87,13 +87,25 @@ class ActionPopup(QWidget):
 
     def show_at_mouse(self, idea_id):
         self.current_idea_id = idea_id
-        self.common_tags_bar.reload_tags()
+        
+        # 获取笔记信息
+        idea_data = self.db_manager.get_idea(idea_id)
+        if not idea_data: return
+        is_favorite = idea_data[5] == 1
+        active_tags = self.db_manager.get_tags(idea_id)
+
+        self.common_tags_bar.reload_tags(active_tags)
         
         self.success_animation.start()
         
-        self.btn_fav.setText("⭐")
-        self.btn_fav.setStyleSheet(f"QPushButton {{ background: transparent; color: #BBB; border: none; font-size: 14px; }} QPushButton:hover {{ color: {COLORS['warning']}; }}")
-        
+        # 根据收藏状态设置按钮样式
+        if is_favorite:
+            self.btn_fav.setText("★")
+            self.btn_fav.setStyleSheet(f"color: {COLORS['warning']}; border: none; font-size: 14px;")
+        else:
+            self.btn_fav.setText("⭐")
+            self.btn_fav.setStyleSheet(f"QPushButton {{ background: transparent; color: #BBB; border: none; font-size: 14px; }} QPushButton:hover {{ color: {COLORS['warning']}; }}")
+
         self.container.adjustSize()
         self.resize(self.container.size() + QSize(10, 10))
         
@@ -132,8 +144,11 @@ class ActionPopup(QWidget):
 
     def _on_quick_tag_clicked(self, tag_name):
         if self.current_idea_id:
-            self.request_tag_add.emit(self.current_idea_id, tag_name)
-            self.hide_timer.start(2500) 
+            self.request_tag_toggle.emit(self.current_idea_id, tag_name)
+
+            # 刷新 popup 自身以立即反映状态变化
+            self.show_at_mouse(self.current_idea_id)
+            self.hide_timer.start(3500)
 
     def _on_manager_clicked(self):
         self.request_manager.emit()

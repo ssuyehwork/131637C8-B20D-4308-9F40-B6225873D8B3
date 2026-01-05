@@ -16,8 +16,9 @@ class CommonTags(QWidget):
     manager_requested = pyqtSignal()   # 点击编辑按钮
     refresh_requested = pyqtSignal()   # 请求刷新尺寸
 
-    def __init__(self, parent=None):
+    def __init__(self, db_manager, parent=None):
         super().__init__(parent)
+        self.db_manager = db_manager
         self._init_ui()
         self.reload_tags()
 
@@ -27,19 +28,18 @@ class CommonTags(QWidget):
         self.layout.setSpacing(6)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
-    def reload_tags(self):
-        """从配置加载，并根据显隐和数量限制进行渲染"""
-        # 清除旧按钮
+    def reload_tags(self, active_tags=None):
+        if active_tags is None:
+            active_tags = []
+
         while self.layout.count():
             item = self.layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
-        # 1. 加载数据
         raw_tags = load_setting('manual_common_tags', ['工作', '待办', '重要'])
-        limit = load_setting('common_tags_limit', 5) # 默认显示5个
+        limit = load_setting('common_tags_limit', 5)
 
-        # 2. 数据清洗 (兼容旧格式字符串列表)
         processed_tags = []
         for item in raw_tags:
             if isinstance(item, str):
@@ -47,34 +47,41 @@ class CommonTags(QWidget):
             elif isinstance(item, dict):
                 processed_tags.append(item)
         
-        # 3. 筛选可见标签
         visible_tags = [t for t in processed_tags if t.get('visible', True)]
-        
-        # 4. 截取前 N 个
         display_tags = visible_tags[:limit]
 
-        # 5. 渲染按钮
         for tag in display_tags:
             name = tag['name']
             btn = QPushButton(f"{name}")
             btn.setCursor(Qt.PointingHandCursor)
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: #3E3E42;
-                    color: #DDD;
-                    border: 1px solid #555;
-                    border-radius: 10px;
-                    padding: 2px 8px;
-                    font-size: 11px;
-                    min-height: 20px;
-                    max-width: 80px; 
-                }}
-                QPushButton:hover {{
-                    background-color: {COLORS['primary']};
-                    border-color: {COLORS['primary']};
-                    color: white;
-                }}
-            """)
+
+            is_active = name in active_tags
+
+            # 根据是否激活设置不同样式
+            if is_active:
+                style = f"""
+                    QPushButton {{
+                        background-color: {COLORS['primary']};
+                        color: white;
+                        border: 1px solid {COLORS['primary']};
+                        border-radius: 10px; padding: 2px 8px; font-size: 11px; min-height: 20px; max-width: 80px;
+                    }}
+                    QPushButton:hover {{
+                        background-color: #D32F2F; border-color: #D32F2F; /* 悬停时变暗红色表示取消 */
+                    }}
+                """
+            else:
+                style = f"""
+                    QPushButton {{
+                        background-color: #3E3E42; color: #DDD; border: 1px solid #555;
+                        border-radius: 10px; padding: 2px 8px; font-size: 11px; min-height: 20px; max-width: 80px;
+                    }}
+                    QPushButton:hover {{
+                        background-color: {COLORS['primary']}; border-color: {COLORS['primary']}; color: white;
+                    }}
+                """
+
+            btn.setStyleSheet(style)
             btn.clicked.connect(lambda _, n=name: self.tag_clicked.emit(n))
             self.layout.addWidget(btn)
 
