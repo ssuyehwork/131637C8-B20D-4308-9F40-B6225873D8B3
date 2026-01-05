@@ -336,16 +336,61 @@ class Sidebar(QTreeWidget):
                 
             self.data_changed.emit()
 
+    def _update_category_and_descendants_color(self, cat_id, color_name):
+        """
+        Updates a category and all its descendants in the database and UI.
+        """
+        # Get all category IDs to update (parent and all descendants) using a recursive query
+        cursor = self.db.conn.cursor()
+        query = """
+            WITH RECURSIVE descendants(id) AS (
+                VALUES(?)
+                UNION ALL
+                SELECT c.id FROM categories c JOIN descendants d ON c.parent_id = d.id
+            )
+            SELECT id FROM descendants;
+        """
+        try:
+            cursor.execute(query, (cat_id,))
+            all_ids = [row[0] for row in cursor.fetchall()]
+
+            # Update database in a single transaction
+            cursor.execute("BEGIN")
+            for cid in all_ids:
+                cursor.execute("UPDATE categories SET color = ? WHERE id = ?", (color_name, cid))
+            self.db.conn.commit()
+        except Exception as e:
+            self.db.conn.rollback()
+            print(f"Error updating category colors: {e}")
+            return
+
+        # Find the top-level item in the tree and update its UI and its children's UI
+        def find_item_recursive(parent_item, target_id):
+            for i in range(parent_item.childCount()):
+                item = parent_item.child(i)
+                data = item.data(0, Qt.UserRole)
+                if data and data == ('category', target_id):
+                    return item
+                found = find_item_recursive(item, target_id)
+                if found:
+                    return found
+            return None
+
+        def update_icons_recursively(item):
+            if not item: return
+            item.setIcon(0, self._create_color_icon(color_name))
+            for i in range(item.childCount()):
+                update_icons_recursively(item.child(i))
+
+        top_item = find_item_recursive(self.invisibleRootItem(), cat_id)
+        if top_item:
+            update_icons_recursively(top_item)
+
     def _change_color(self, cat_id):
         color = QColorDialog.getColor(Qt.gray, self, "选择分类颜色")
         if color.isValid():
             color_name = color.name()
-            self.db.set_category_color(cat_id, color_name)
-
-            # 直接更新当前项的图标，而不是刷新整个树
-            item = self.currentItem()
-            if item and item.data(0, Qt.UserRole) == ('category', cat_id):
-                item.setIcon(0, self._create_color_icon(color_name))
+            self._update_category_and_descendants_color(cat_id, color_name)
 
     def _set_random_color(self, cat_id):
         r = random.randint(0, 255)
@@ -361,11 +406,7 @@ class Sidebar(QTreeWidget):
             color = QColor(r, g, b)
 
         color_name = color.name()
-        self.db.set_category_color(cat_id, color_name)
-
-        item = self.currentItem()
-        if item and item.data(0, Qt.UserRole) == ('category', cat_id):
-            item.setIcon(0, self._create_color_icon(color_name))
+        self._update_category_and_descendants_color(cat_id, color_name)
 
     def _request_new_data(self, cat_id):
         self.new_data_requested.emit(cat_id)
