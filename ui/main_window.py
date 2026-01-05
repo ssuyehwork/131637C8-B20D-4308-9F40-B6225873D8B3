@@ -130,7 +130,7 @@ class TagChipWidget(QWidget):
         self.label = QLabel(tag_name)
         self.label.setStyleSheet("border: none; background: transparent; color: #DDD; font-size: 12px; font-family: 'Segoe UI', 'Microsoft YaHei';")
 
-        self.delete_btn = QPushButton("✕")
+        self.delete_btn = QPushButton("×")
         self.delete_btn.setFixedSize(18, 18)
         self.delete_btn.setCursor(Qt.PointingHandCursor)
         self.delete_btn.setStyleSheet(f"""
