@@ -57,7 +57,8 @@ class IdeaCard(QFrame):
             is_locked = self.data[13]
         
         if is_locked:
-            lock_icon = QLabel('🔒')
+            # U+FE0E 是一个变体选择器，它强制将表情符号呈现为文本，从而允许颜色样式生效。
+            lock_icon = QLabel('🔒\uFE0E')
             lock_icon.setStyleSheet(f"background:transparent; font-size:12px; color: {COLORS['success']};")
             icon_layout.addWidget(lock_icon)
 
