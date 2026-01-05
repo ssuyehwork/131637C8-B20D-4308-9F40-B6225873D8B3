@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QSplitter, QLine
                                QApplication, QToolTip, QMenu, QFrame, QTextEdit, QDialog,
                                QGraphicsDropShadowEffect, QLayout, QSizePolicy, QInputDialog)
 from PyQt5.QtCore import Qt, QTimer, QPoint, pyqtSignal, QRect, QSize, QByteArray
-from PyQt5.QtGui import QKeySequence, QCursor, QColor, QIntValidator
+from PyQt5.QtGui import QKeySequence, QCursor, QColor, QIntValidator, QPixmap, QPainter
 from core.config import STYLES, COLORS
 from core.settings import load_setting, save_setting
 from data.db_manager import DatabaseManager
@@ -241,6 +241,7 @@ class MainWindow(QWidget):
         self.sidebar.filter_changed.connect(self._set_filter)
         self.sidebar.data_changed.connect(self._load_data)
         self.sidebar.new_data_requested.connect(self._on_new_data_in_category_requested)
+        self.sidebar.category_color_changed.connect(self._on_category_color_changed)
         splitter.addWidget(self.sidebar)
         
         middle_panel = self._create_middle_panel()
@@ -423,6 +424,19 @@ class MainWindow(QWidget):
         self.btn_next.setDisabled(is_last)
         self.btn_last.setDisabled(is_last)
 
+    def _create_colored_pixmap(self, color_str):
+        pixmap = QPixmap(16, 16)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        color = QColor(color_str if color_str else "#808080")
+        painter.setBrush(color)
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(1, 1, 14, 14)
+        painter.end()
+        return pixmap
+
     def _create_middle_panel(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
@@ -430,9 +444,14 @@ class MainWindow(QWidget):
         layout.setSpacing(0)
         
         act_bar = QHBoxLayout()
-        act_bar.setSpacing(4)
+        act_bar.setSpacing(8)
         act_bar.setContentsMargins(20, 10, 20, 10)
         
+        self.header_icon = QLabel()
+        self.header_icon.setFixedSize(16, 16)
+        self.header_icon.hide()
+        act_bar.addWidget(self.header_icon)
+
         self.header_label = QLabel('全部数据')
         self.header_label.setStyleSheet("font-size:18px;font-weight:bold;")
         act_bar.addWidget(self.header_label)
@@ -955,6 +974,13 @@ class MainWindow(QWidget):
         self._show_tooltip(f'✅ 已记录并绑定 {len(tags)} 个标签', 2000)
         self._refresh_all()
 
+    def _on_category_color_changed(self, cat_id, color_name):
+        # Check if the currently displayed category is the one that changed
+        if self.curr_filter and self.curr_filter[0] == 'category' and self.curr_filter[1] == cat_id:
+            pixmap = self._create_colored_pixmap(color_name)
+            self.header_icon.setPixmap(pixmap)
+            self.header_icon.show()
+
     def _set_filter(self, f_type, val):
         self.curr_filter = (f_type, val)
         self.selected_ids.clear()
@@ -963,11 +989,21 @@ class MainWindow(QWidget):
         self.tag_filter_label.hide()
         self.clear_tag_btn.hide()
         titles = {'all':'全部数据','today':'今日数据','trash':'回收站','favorite':'我的收藏'}
+
         if f_type == 'category':
             cat = next((c for c in self.db.get_categories() if c[0] == val), None)
-            self.header_label.setText(f"📂 {cat[1]}" if cat else '文件夹')
+            self.header_label.setText(f"{cat[1]}" if cat else '文件夹')
+            # Get color and update icon
+            color = self.db.get_category_color(val)
+            if color:
+                pixmap = self._create_colored_pixmap(color)
+                self.header_icon.setPixmap(pixmap)
+                self.header_icon.show()
+            else:
+                self.header_icon.hide()
         else:
             self.header_label.setText(titles.get(f_type, '灵感列表'))
+            self.header_icon.hide()
         
         # 延迟执行，防止在点击事件处理中销毁对象
         QTimer.singleShot(10, self._load_data)

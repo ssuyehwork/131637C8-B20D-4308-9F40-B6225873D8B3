@@ -395,6 +395,14 @@ class DatabaseManager:
         c.execute('SELECT * FROM categories ORDER BY sort_order ASC, name ASC')
         return c.fetchall()
 
+    def get_category_color(self, category_id):
+        if category_id is None:
+            return None
+        c = self.conn.cursor()
+        c.execute("SELECT color FROM categories WHERE id = ?", (category_id,))
+        result = c.fetchone()
+        return result[0] if result else None
+
     def add_category(self, name, parent_id=None):
         c = self.conn.cursor()
         if parent_id is None:

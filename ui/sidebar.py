@@ -19,6 +19,7 @@ class Sidebar(QTreeWidget):
     filter_changed = pyqtSignal(str, object)
     data_changed = pyqtSignal()
     new_data_requested = pyqtSignal(int)
+    category_color_changed = pyqtSignal(int, str)
 
     def __init__(self, db, parent=None):
         super().__init__(parent)
@@ -385,6 +386,9 @@ class Sidebar(QTreeWidget):
         top_item = find_item_recursive(self.invisibleRootItem(), cat_id)
         if top_item:
             update_icons_recursively(top_item)
+
+        # Emit the signal to notify other parts of the application
+        self.category_color_changed.emit(cat_id, color_name)
 
     def _change_color(self, cat_id):
         color = QColorDialog.getColor(Qt.gray, self, "选择分类颜色")
