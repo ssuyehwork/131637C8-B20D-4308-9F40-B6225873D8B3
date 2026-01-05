@@ -765,11 +765,20 @@ class MainWindow(QWidget):
                 
                 btn.setContextMenuPolicy(Qt.CustomContextMenu)
                 btn.customContextMenuRequested.connect(lambda pos, n=tag_name: self._show_tag_context_menu(pos, n))
-                
-                bg_color = COLORS['primary'] if is_active else '#333333'
-                border_color = COLORS['primary'] if is_active else '#444444'
-                text_color = 'white' if is_active else '#CCCCCC'
-                
+
+                if is_active:
+                    bg_color = COLORS['success']
+                    border_color = COLORS['success']
+                    text_color = 'white'
+                    hover_bg_color = '#27ae60' # A slightly darker green for hover
+                    hover_border_color = '#27ae60'
+                else:
+                    bg_color = '#333333'
+                    border_color = '#444444'
+                    text_color = '#CCCCCC'
+                    hover_bg_color = COLORS['primary']
+                    hover_border_color = COLORS['primary']
+
                 btn.setStyleSheet(f"""
                     QPushButton {{ 
                         background-color: {bg_color}; 
@@ -782,8 +791,8 @@ class MainWindow(QWidget):
                         font-family: "Segoe UI", "Microsoft YaHei";
                     }} 
                     QPushButton:hover {{ 
-                        background-color: {COLORS['primary']};
-                        border-color: {COLORS['primary']}; 
+                        background-color: {hover_bg_color};
+                        border-color: {hover_border_color};
                         color: white; 
                     }}
                 """)
