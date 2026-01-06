@@ -93,7 +93,10 @@ class Sidebar(QTreeWidget):
         if cache_key in self._icon_cache:
             return self._icon_cache[cache_key]
 
-        icon_path = os.path.join("ui", "icons", icon_name)
+        # Use an absolute path to ensure icons are found
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(base_path, "icons", icon_name)
+
         if not os.path.exists(icon_path):
             return QIcon()
 
