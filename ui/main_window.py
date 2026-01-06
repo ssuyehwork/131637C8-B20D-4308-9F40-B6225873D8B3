@@ -1039,7 +1039,7 @@ class MainWindow(QWidget):
             star_group = QActionGroup(self)
             star_group.setExclusive(True)
             for i in range(1, 6):
-                action = QAction(f"{'★'*i}{'☆'*(5-i)}", self, checkable=True)
+                action = QAction(f"{'★'*i}", self, checkable=True)
                 action.triggered.connect(lambda _, r=i: self._do_set_rating(r))
                 if rating == i:
                     action.setChecked(True)

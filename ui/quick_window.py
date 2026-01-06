@@ -453,7 +453,7 @@ class QuickWindow(QWidget):
         star_group = QActionGroup(self)
         star_group.setExclusive(True)
         for i in range(1, 6):
-            action = QAction(f"{'★'*i}{'☆'*(5-i)}", self, checkable=True)
+            action = QAction(f"{'★'*i}", self, checkable=True)
             action.triggered.connect(lambda _, r=i: self._do_set_rating(r))
             if rating == i:
                 action.setChecked(True)
@@ -833,7 +833,7 @@ class QuickWindow(QWidget):
         # 1. 星级
         rating = item_tuple[14] if len(item_tuple) > 14 else 0
         if rating > 0:
-            prefix += f"{'★'*rating}{'☆'*(5-rating)} "
+            prefix += f"{'★'*rating} "
 
         # 2. 锁定状态
         is_locked = item_tuple[13] if len(item_tuple) > 13 else 0
