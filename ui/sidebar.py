@@ -202,7 +202,7 @@ class Sidebar(QTreeWidget):
                     if key == 'category': self.db.move_category(iid, val)
                     elif key == 'uncategorized': self.db.move_category(iid, None)
                     elif key == 'trash': self.db.set_deleted(iid, True)
-                elif key == 'bookmark': self.db.set_favorite(iid, True)
+                    elif key == 'bookmark': self.db.set_favorite(iid, True)
                 
                 self.data_changed.emit()
                 self.refresh()
