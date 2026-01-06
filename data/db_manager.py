@@ -504,7 +504,7 @@ class DatabaseManager:
             'today': "(is_deleted=0 OR is_deleted IS NULL) AND date(updated_at,'localtime')=date('now','localtime')",
             'uncategorized': "(is_deleted=0 OR is_deleted IS NULL) AND category_id IS NULL",
             'untagged': "(is_deleted=0 OR is_deleted IS NULL) AND id NOT IN (SELECT idea_id FROM idea_tags)",
-            'favorite': "(is_deleted=0 OR is_deleted IS NULL) AND is_favorite=1",
+            'bookmark': "(is_deleted=0 OR is_deleted IS NULL) AND is_favorite=1",
             'trash': "is_deleted=1"
         }
         for k, v in queries.items():

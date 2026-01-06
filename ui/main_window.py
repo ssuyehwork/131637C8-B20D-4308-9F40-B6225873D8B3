@@ -444,7 +444,7 @@ class MainWindow(QWidget):
         act_bar.addStretch()
         
         self.btns = {}
-        for k, i, f in [('pin','📌',self._do_pin), ('fav','⭐',self._do_fav), ('edit','✏️',self._do_edit),
+        for k, i, f in [('pin','📌',self._do_pin), ('fav','🔖',self._do_fav), ('edit','✏️',self._do_edit),
                         ('del','🗑️',self._do_del), ('rest','♻️',self._do_restore), ('dest','🗑️',self._do_destroy)]:
             b = QPushButton(i)
             b.setStyleSheet(STYLES['btn_icon'])
@@ -1056,7 +1056,7 @@ class MainWindow(QWidget):
                 
             menu.addSeparator()
             menu.addAction('📌 取消置顶' if data[4] else '📌 置顶', self._do_pin)
-            menu.addAction('🌟 取消收藏' if data[5] else '🌟 收藏', self._do_fav)
+            menu.addAction('🔖 取消书签' if data[5] else '🔖 添加书签', self._do_fav)
             menu.addSeparator()
             
             if not is_locked:
@@ -1181,10 +1181,10 @@ class MainWindow(QWidget):
             d = self.db.get_idea(idea_id)
             if d:
                 self.btns['pin'].setText('📍' if not d[4] else '📌')
-                self.btns['fav'].setText('☆' if not d[5] else '⭐')
+                self.btns['fav'].setText('🔖' if d[5] else '🔖') # 保持图标一致
         else:
             self.btns['pin'].setText('📌')
-            self.btns['fav'].setText('⭐')
+            self.btns['fav'].setText('🔖')
         # 【关键修复】异步刷新标签面板
         QTimer.singleShot(0, self._refresh_tag_panel)
 

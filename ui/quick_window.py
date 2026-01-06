@@ -473,7 +473,7 @@ class QuickWindow(QWidget):
         action_pin = menu.addAction("📌 取消置顶" if is_pinned else "📌 置顶")
         action_pin.triggered.connect(self._do_toggle_pin)
 
-        action_fav = menu.addAction("🌟 取消收藏" if is_fav else "🌟 收藏")
+        action_fav = menu.addAction("🔖 取消书签" if is_fav else "🔖 添加书签")
         action_fav.triggered.connect(self._do_toggle_favorite)
         
         if not is_locked:
@@ -610,7 +610,7 @@ class QuickWindow(QWidget):
         target_data = target_item.data(0, Qt.UserRole)
         target_type = target_data.get('type')
 
-        if target_type == 'favorite': self.db.set_favorite(idea_id, True)
+        if target_type == 'bookmark': self.db.set_favorite(idea_id, True)
         elif target_type == 'trash': self.db.set_deleted(idea_id, True)
         elif target_type == 'uncategorized': self.db.move_category(idea_id, None)
         elif target_type == 'partition': self.db.move_category(idea_id, cat_id)
@@ -787,7 +787,7 @@ class QuickWindow(QWidget):
                 p_type = partition_data.get('type')
                 if p_type == 'partition':
                     f_type, f_val = 'category', partition_data.get('id')
-                elif p_type in ['all', 'today', 'uncategorized', 'untagged', 'favorite', 'trash']:
+        elif p_type in ['all', 'today', 'uncategorized', 'untagged', 'bookmark', 'trash']:
                     f_type, f_val = p_type, None
 
         items = self.db.get_ideas(search=search_text, f_type=f_type, f_val=f_val)
@@ -839,9 +839,9 @@ class QuickWindow(QWidget):
         is_locked = item_tuple[13] if len(item_tuple) > 13 else 0
         if is_locked: prefix += "🔒 "
         
-        # 3. 置顶和收藏
+        # 3. 置顶和书签
         if item_tuple[4]: prefix += "📌 "
-        if item_tuple[5]: prefix += "🌟 "
+        if item_tuple[5]: prefix += "🔖 "
         
         item_type = item_tuple[10] if len(item_tuple) > 10 and item_tuple[10] else 'text'
 
@@ -882,11 +882,11 @@ class QuickWindow(QWidget):
             ("今日数据", 'today', 'today.svg'),
             ("未分类", 'uncategorized', 'uncategorized.svg'),
             ("未标签", 'untagged', 'untagged.svg'),
-            ("收藏", 'favorite', 'favorite.svg'),
+            ("书签", 'bookmark', 'bookmark.svg'),
             ("回收站", 'trash', 'trash.svg')
         ]
         
-        id_map = {'all': -1, 'today': -5, 'uncategorized': -15, 'untagged': -16, 'favorite': -20, 'trash': -30}
+        id_map = {'all': -1, 'today': -5, 'uncategorized': -15, 'untagged': -16, 'bookmark': -20, 'trash': -30}
         for name, key, icon_filename in static_items:
             data = {'type': key, 'id': id_map.get(key)}
             item = QTreeWidgetItem(self.partition_tree, [f"{name} ({counts.get(key, 0)})"])
