@@ -82,7 +82,7 @@ class IdeaCard(QFrame):
 
         if rating > 0:
             self.rating_label.setText(f"{'★'*rating}{'☆'*(5-rating)}")
-            self.rating_label.setStyleSheet(f"background:transparent; font-size:12px; color: {COLORS['favorite']};")
+            self.rating_label.setStyleSheet(f"background:transparent; font-size:12px; color: {COLORS['warning']};")
             self.rating_label.show()
         else:
             self.rating_label.hide()
