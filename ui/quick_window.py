@@ -442,6 +442,8 @@ class QuickWindow(QWidget):
             QMenu::separator { background-color: #444; height: 1px; margin: 4px 0px; }
         """)
 
+        action_del, action_pin = None, None
+
         action_preview = menu.addAction("👁️ 预览 (Space)")
         action_preview.triggered.connect(self._do_preview)
         
@@ -491,7 +493,13 @@ class QuickWindow(QWidget):
             del_action = menu.addAction("🗑️ 删除 (已锁定)")
             del_action.setEnabled(False)
 
-        menu.exec_(self.list_widget.mapToGlobal(pos))
+        action = menu.exec_(self.list_widget.mapToGlobal(pos))
+
+        # 检查是否有需要刷新列表的动作被触发
+        if action in [action_del, action_pin] and action is not None:
+             self._update_list()
+             self._update_partition_tree()
+
 
     def _do_set_rating(self, rating):
         item = self.list_widget.currentItem()
@@ -573,8 +581,6 @@ class QuickWindow(QWidget):
                 return
                 
             self.db.set_deleted(iid, True)
-            self._update_list()
-            self._update_partition_tree()
 
     def _do_toggle_favorite(self):
         item = self.list_widget.currentItem()
@@ -592,7 +598,6 @@ class QuickWindow(QWidget):
         iid = self._get_selected_id()
         if iid:
             self.db.toggle_field(iid, 'is_pinned')
-            self._update_list()
 
     def _handle_category_drop(self, idea_id, cat_id):
         status = self.db.get_lock_status([idea_id])

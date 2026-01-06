@@ -563,6 +563,7 @@ class MainWindow(QWidget):
     def _add_tag_to_selection(self, tags):
         if not self.selected_ids or not tags: return
         self.db.add_tags_to_multiple_ideas(list(self.selected_ids), tags)
+        self._show_tooltip(f"✅ 已添加 {len(tags)} 个标签到 {len(self.selected_ids)} 项")
         self._refresh_all()
 
     def _remove_tag_from_selection(self, tag_name):
@@ -955,6 +956,7 @@ class MainWindow(QWidget):
         tag_selector.show_at_cursor()
 
     def _on_tags_confirmed(self, idea_id, tags):
+        self._show_tooltip(f'✅ 已记录并绑定 {len(tags)} 个标签', 2000)
         self._refresh_all()
 
     def _set_filter(self, f_type, val):
@@ -1010,15 +1012,11 @@ class MainWindow(QWidget):
         self._update_ui_state()
 
     def _show_card_menu(self, idea_id, pos):
-        selection_changed = False
         if idea_id not in self.selected_ids:
             self.selected_ids = {idea_id}
             self.last_clicked_id = idea_id
             self._update_all_card_selections()
-            selection_changed = True
-
-        self._update_main_actions_state() # 立即更新按钮，这是安全的
-
+            self._update_ui_state()
         data = self.db.get_idea(idea_id)
         if not data: return
         menu = QMenu(self)
@@ -1081,12 +1079,7 @@ class MainWindow(QWidget):
             menu.addAction('🗑️ 永久删除', self._do_destroy)
             
         card = self.cards.get(idea_id)
-        if card:
-            menu.exec_(card.mapToGlobal(pos))
-
-        # 只有在选择集变化时，才在菜单关闭后刷新标签面板
-        if selection_changed:
-            QTimer.singleShot(0, self._refresh_tag_panel)
+        if card: menu.exec_(card.mapToGlobal(pos))
 
     def _do_set_rating(self, rating):
         if not self.selected_ids: return
@@ -1102,6 +1095,8 @@ class MainWindow(QWidget):
                 if new_data:
                     card_widget.update_data(new_data)
                     
+        self._show_tooltip(f"✅ 已设置 {len(self.selected_ids)} 项的评级")
+
     def _do_lock(self):
         if not self.selected_ids: return
         
@@ -1130,6 +1125,7 @@ class MainWindow(QWidget):
                     card.update_data(new_data)
 
         action_name = "锁定" if target_state else "解锁"
+        self._show_tooltip(f"✅ 已{action_name} {len(self.selected_ids)} 项")
         self._update_ui_state()
 
     def _move_to_category(self, cat_id):
@@ -1141,6 +1137,9 @@ class MainWindow(QWidget):
                 if not status_map.get(iid, 0):
                     valid_ids.append(iid)
             
+            if len(valid_ids) < len(self.selected_ids):
+                self._show_tooltip("⚠️ 部分项目已锁定，无法移动")
+
             if not valid_ids: return
 
             for iid in valid_ids:
@@ -1155,6 +1154,8 @@ class MainWindow(QWidget):
             self._update_ui_state()
             self.sidebar.refresh() # 刷新分类计数
             self.sidebar._update_partition_tree() # 刷新分区计数
+            if valid_ids:
+                self._show_tooltip(f'✅ 已移动 {len(valid_ids)} 项')
 
     def _handle_selection_request(self, iid, is_ctrl, is_shift):
         if is_shift and self.last_clicked_id is not None:
@@ -1186,7 +1187,7 @@ class MainWindow(QWidget):
         for iid, card in self.cards.items():
             card.update_selection(iid in self.selected_ids)
 
-    def _update_main_actions_state(self):
+    def _update_ui_state(self):
         in_trash = (self.curr_filter[0] == 'trash')
         selection_count = len(self.selected_ids)
         has_selection = selection_count > 0
@@ -1205,9 +1206,6 @@ class MainWindow(QWidget):
         else:
             self.btns['pin'].setText('📌')
             self.btns['fav'].setText('🔖')
-
-    def _update_ui_state(self):
-        self._update_main_actions_state()
         # 【关键修复】异步刷新标签面板
         QTimer.singleShot(0, self._refresh_tag_panel)
 
@@ -1245,6 +1243,7 @@ class MainWindow(QWidget):
             # 检查锁定
             status = self.db.get_lock_status([idea_id])
             if status.get(idea_id, 0):
+                self._show_tooltip("🔒 该笔记已锁定，请先解锁")
                 return
             self._open_edit_dialog(idea_id=idea_id)
 
@@ -1290,6 +1289,9 @@ class MainWindow(QWidget):
                 if not status_map.get(iid, 0):
                     valid_ids.append(iid)
             
+            if len(valid_ids) < len(self.selected_ids):
+                self._show_tooltip("⚠️ 部分项目已锁定，无法删除")
+
             if not valid_ids: return
 
             for iid in valid_ids:
@@ -1303,6 +1305,7 @@ class MainWindow(QWidget):
             self.selected_ids.clear()
             self._update_ui_state()
             self.sidebar.refresh() # --- 关键修复：刷新侧边栏计数 ---
+            self._show_tooltip(f"✅ 已移动 {len(valid_ids)} 项到回收站")
 
     def _do_restore(self):
         if self.selected_ids:
@@ -1316,6 +1319,7 @@ class MainWindow(QWidget):
             self.selected_ids.clear()
             self._update_ui_state()
             self.sidebar.refresh()
+            self._show_tooltip(f"✅ 已恢复 {count} 项")
 
     def _do_destroy(self):
         if self.selected_ids:
@@ -1331,6 +1335,7 @@ class MainWindow(QWidget):
                 self.selected_ids.clear()
                 self._update_ui_state()
                 self.sidebar.refresh()
+                self._show_tooltip(f"✅ 已永久删除 {count} 项")
 
     def _refresh_all(self):
         # 【关键保护】如果正在清理旧控件，不要重入
