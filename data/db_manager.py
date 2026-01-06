@@ -44,8 +44,7 @@ class DatabaseManager:
             ('item_type', "TEXT DEFAULT 'text'"),
             ('data_blob', 'BLOB'),
             ('content_hash', 'TEXT'),
-            ('is_locked', 'INTEGER DEFAULT 0'),
-            ('rating', 'INTEGER DEFAULT 0')
+            ('is_locked', 'INTEGER DEFAULT 0')
         ]
         
         for col, type_def in updates:
@@ -218,6 +217,7 @@ class DatabaseManager:
             )
             idea_id = c.lastrowid
             
+            self._update_tags(idea_id, ["剪贴板"])
             self.conn.commit()
             return idea_id, True
 
@@ -245,32 +245,6 @@ class DatabaseManager:
     def set_favorite(self, iid, state):
         c = self.conn.cursor()
         c.execute('UPDATE ideas SET is_favorite=? WHERE id=?', (1 if state else 0, iid))
-
-        if state:
-            # When bookmarking, set the color to the bookmark color.
-            bookmark_color = '#ff6b81'
-            c.execute('UPDATE ideas SET color=? WHERE id=?', (bookmark_color, iid))
-        else:
-            # When un-bookmarking, revert the color based on its category.
-            c.execute('SELECT category_id FROM ideas WHERE id=?', (iid,))
-            res = c.fetchone()
-            if res and res[0] is not None:
-                cat_id = res[0]
-                c.execute('SELECT color FROM categories WHERE id=?', (cat_id,))
-                cat_res = c.fetchone()
-                if cat_res:
-                    c.execute('UPDATE ideas SET color=? WHERE id=?', (cat_res[0], iid))
-            else:
-                # If no category, revert to the default uncategorized color.
-                uncat_color = COLORS.get('uncategorized', '#0A362F')
-                c.execute('UPDATE ideas SET color=? WHERE id=?', (uncat_color, iid))
-
-        self.conn.commit()
-
-    def set_rating(self, idea_id, rating):
-        c = self.conn.cursor()
-        rating = max(0, min(5, int(rating)))
-        c.execute('UPDATE ideas SET rating=? WHERE id=?', (rating, idea_id))
         self.conn.commit()
 
     def move_category(self, iid, cat_id):
@@ -301,23 +275,15 @@ class DatabaseManager:
     def get_idea(self, iid, include_blob=False):
         c = self.conn.cursor()
         if include_blob:
-            # Making SELECT * explicit to guarantee column order for consumers.
-            # 0:id, 1:title, 2:content, 3:color, 4:pinned, 5:fav, 6:created, 7:updated,
-            # 8:cat_id, 9:is_deleted, 10:item_type, 11:data_blob, 12:hash, 13:is_locked, 14:rating
-            c.execute('''
-                SELECT id, title, content, color, is_pinned, is_favorite,
-                       created_at, updated_at, category_id, is_deleted, item_type,
-                       data_blob, content_hash, is_locked, rating
-                FROM ideas WHERE id=?
-            ''', (iid,))
+            c.execute('SELECT * FROM ideas WHERE id=?', (iid,))
         else:
             # 明确指定列，与 get_ideas 保持一致 (无blob)
             # 0:id, 1:title, 2:content, 3:color, 4:pinned, 5:fav, 6:created, 7:updated, 
-            # 8:cat_id, 9:is_deleted, 10:item_type, 11:data_blob(NULL), 12:hash(NULL), 13:is_locked, 14:rating
+            # 8:cat_id, 9:is_deleted, 10:item_type, 11:data_blob(NULL), 12:hash(NULL), 13:is_locked
             c.execute('''
                 SELECT id, title, content, color, is_pinned, is_favorite, 
                        created_at, updated_at, category_id, is_deleted, item_type, 
-                       NULL as data_blob, NULL as content_hash, is_locked, rating
+                       NULL as data_blob, NULL as content_hash, is_locked
                 FROM ideas WHERE id=?
             ''', (iid,))
         return c.fetchone()
@@ -341,13 +307,12 @@ class DatabaseManager:
         # 11: data_blob
         # 12: content_hash
         # 13: is_locked
-        # 14: rating
         
         q = """
             SELECT DISTINCT 
                 i.id, i.title, i.content, i.color, i.is_pinned, i.is_favorite, 
                 i.created_at, i.updated_at, i.category_id, i.is_deleted, 
-                i.item_type, i.data_blob, i.content_hash, i.is_locked, i.rating
+                i.item_type, i.data_blob, i.content_hash, i.is_locked
             FROM ideas i 
             LEFT JOIN idea_tags it ON i.id=it.idea_id 
             LEFT JOIN tags t ON it.tag_id=t.id 
@@ -362,8 +327,10 @@ class DatabaseManager:
             if f_val is None: q += ' AND i.category_id IS NULL'
             else: q += ' AND i.category_id=?'; p.append(f_val)
         elif f_type == 'today': q += " AND date(i.updated_at,'localtime')=date('now','localtime')"
+        elif f_type == 'clipboard': q += " AND i.id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = '剪贴板'))"
         elif f_type == 'untagged': q += ' AND i.id NOT IN (SELECT idea_id FROM idea_tags)'
-        elif f_type == 'bookmark': q += ' AND i.is_favorite=1'
+        elif f_type == 'favorite': q += ' AND i.is_favorite=1'
+        elif f_type == 'rating': q += ' AND i.rating=?'; p.append(f_val)
         
         if tag_filter:
             q += " AND i.id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = ?))"
@@ -399,8 +366,9 @@ class DatabaseManager:
             if f_val is None: q += ' AND i.category_id IS NULL'
             else: q += ' AND i.category_id=?'; p.append(f_val)
         elif f_type == 'today': q += " AND date(i.updated_at,'localtime')=date('now','localtime')"
+        elif f_type == 'clipboard': q += " AND i.id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = '剪贴板'))"
         elif f_type == 'untagged': q += ' AND i.id NOT IN (SELECT idea_id FROM idea_tags)'
-        elif f_type == 'bookmark': q += ' AND i.is_favorite=1'
+        elif f_type == 'favorite': q += ' AND i.is_favorite=1'
         
         if tag_filter:
             q += " AND i.id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = ?))"
@@ -522,11 +490,15 @@ class DatabaseManager:
         queries = {
             'all': "is_deleted=0 OR is_deleted IS NULL",
             'today': "(is_deleted=0 OR is_deleted IS NULL) AND date(updated_at,'localtime')=date('now','localtime')",
+            'clipboard': "(is_deleted=0 OR is_deleted IS NULL) AND id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = '剪贴板'))",
             'uncategorized': "(is_deleted=0 OR is_deleted IS NULL) AND category_id IS NULL",
             'untagged': "(is_deleted=0 OR is_deleted IS NULL) AND id NOT IN (SELECT idea_id FROM idea_tags)",
-            'bookmark': "(is_deleted=0 OR is_deleted IS NULL) AND is_favorite=1",
+            'favorite': "(is_deleted=0 OR is_deleted IS NULL) AND is_favorite=1",
             'trash': "is_deleted=1"
         }
+        for i in range(1, 6):
+            queries[f'rating_{i}'] = f"(is_deleted=0 OR is_deleted IS NULL) AND rating={i}"
+
         for k, v in queries.items():
             c.execute(f"SELECT COUNT(*) FROM ideas WHERE {v}")
             d[k] = c.fetchone()[0]
@@ -565,6 +537,30 @@ class DatabaseManager:
                 tree.append(node)
                 
         return tree
+
+    def get_partition_item_counts(self):
+        c = self.conn.cursor()
+        counts = {'partitions': {}}
+
+        c.execute("SELECT COUNT(*) FROM ideas WHERE is_deleted=0")
+        counts['total'] = c.fetchone()[0]
+
+        c.execute("SELECT COUNT(*) FROM ideas WHERE is_deleted=0 AND date(updated_at, 'localtime') = date('now', 'localtime')")
+        counts['today_modified'] = c.fetchone()[0]
+
+        c.execute("SELECT category_id, COUNT(*) FROM ideas WHERE is_deleted=0 GROUP BY category_id")
+        for cat_id, count in c.fetchall():
+            if cat_id is not None:
+                counts['partitions'][cat_id] = count
+
+        # Add missing counts
+        c.execute("SELECT COUNT(*) FROM ideas i JOIN idea_tags it ON i.id = it.idea_id JOIN tags t ON it.tag_id = t.id WHERE t.name = '剪贴板' AND i.is_deleted=0")
+        counts['clipboard'] = c.fetchone()[0]
+
+        c.execute("SELECT COUNT(*) FROM ideas WHERE is_favorite=1 AND is_deleted=0")
+        counts['favorite'] = c.fetchone()[0]
+
+        return counts
 
     def save_category_order(self, update_list):
         c = self.conn.cursor()
