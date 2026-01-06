@@ -3,7 +3,7 @@
 import random
 from PyQt5.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QInputDialog, 
                              QFrame, QColorDialog, QDialog, QVBoxLayout, QLabel, QLineEdit, 
-                             QPushButton, QHBoxLayout, QApplication, QWidget)
+                             QPushButton, QHBoxLayout, QApplication, QWidget, QStyle)
 from PyQt5.QtCore import Qt, pyqtSignal, QSize, QEvent, QTimer
 from PyQt5.QtGui import QFont, QColor, QPixmap, QPainter, QIcon, QCursor
 from core.config import COLORS
@@ -100,14 +100,22 @@ class Sidebar(QTreeWidget):
             counts = self.db.get_counts()
 
             system_menu_items = [
-                ("全部数据", 'all', '🗂️'), ("今日数据", 'today', '📅'),
+                ("全部数据", 'all', QStyle.SP_DirHomeIcon), ("今日数据", 'today', '📅'),
                 ("剪贴板数据", 'clipboard', '📋'),
                 ("未分类", 'uncategorized', '⚠️'), ("未标签", 'untagged', '🏷️'),
                 ("收藏", 'favorite', '⭐'), ("回收站", 'trash', '🗑️')
             ]
 
-            for name, key, icon in system_menu_items:
-                item = QTreeWidgetItem(self, [f"{icon}  {name} ({counts.get(key, 0)})"])
+            for name, key, icon_data in system_menu_items:
+                text = f"{name} ({counts.get(key, 0)})"
+
+                if isinstance(icon_data, str):
+                    item = QTreeWidgetItem(self, [f"{icon_data}  {text}"])
+                else:
+                    item = QTreeWidgetItem(self, [text])
+                    icon = self.style().standardIcon(icon_data)
+                    item.setIcon(0, icon)
+
                 item.setData(0, Qt.UserRole, (key, None))
                 item.setFlags(item.flags() & ~Qt.ItemIsDragEnabled)
                 item.setExpanded(False)
