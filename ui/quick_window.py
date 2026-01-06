@@ -422,76 +422,85 @@ class QuickWindow(QWidget):
 
     # --- 右键菜单逻辑 ---
     def _show_list_context_menu(self, pos):
-        item = self.list_widget.itemAt(pos)
-        if not item: return
+        import logging
+        try:
+            item = self.list_widget.itemAt(pos)
+            if not item:
+                logging.info("Context menu requested, but no item found at position.")
+                return
 
-        data = item.data(Qt.UserRole)
-        if not data: return
-        
-        idea_id = data['id']
-        is_pinned = data['is_pinned']
-        is_fav = data['is_favorite']
-        is_locked = data['is_locked']
-        rating = data['rating']
+            data = item.data(Qt.UserRole)
+            if not data:
+                logging.warning("Context menu requested, but item has no data.")
+                return
 
-        menu = QMenu(self)
-        menu.setStyleSheet("""
-            QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; border-radius: 4px; padding: 4px; }
-            QMenu::item { padding: 6px 20px; border-radius: 3px; }
-            QMenu::item:selected { background-color: #4a90e2; color: white; }
-            QMenu::separator { background-color: #444; height: 1px; margin: 4px 0px; }
-        """)
+            idea_id = data['id']
+            is_pinned = data['is_pinned']
+            is_fav = data['is_favorite']
+            is_locked = data['is_locked']
+            rating = data['rating']
 
-        action_preview = menu.addAction("👁️ 预览 (Space)")
-        action_preview.triggered.connect(self._do_preview)
-        
-        menu.addSeparator()
+            menu = QMenu(self)
+            menu.setStyleSheet("""
+                QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; border-radius: 4px; padding: 4px; }
+                QMenu::item { padding: 6px 20px; border-radius: 3px; }
+                QMenu::item:selected { background-color: #4a90e2; color: white; }
+                QMenu::separator { background-color: #444; height: 1px; margin: 4px 0px; }
+            """)
 
-        action_copy = menu.addAction("📋 复制内容")
-        action_copy.triggered.connect(lambda: self._copy_item_content(data))
-        
-        menu.addSeparator()
+            action_preview = menu.addAction("👁️ 预览 (Space)")
+            action_preview.triggered.connect(self._do_preview)
 
-        # --- 星级评价 ---
-        rating_menu = menu.addMenu("⭐ 设置星级")
-        star_group = QActionGroup(self)
-        star_group.setExclusive(True)
-        for i in range(1, 6):
-            action = QAction(f"{'★'*i}", self, checkable=True)
-            action.triggered.connect(lambda _, r=i: self._do_set_rating(r))
-            if rating == i:
-                action.setChecked(True)
-            rating_menu.addAction(action)
-            star_group.addAction(action)
-
-        rating_menu.addSeparator()
-        action_clear_rating = rating_menu.addAction("清除评级")
-        action_clear_rating.triggered.connect(lambda: self._do_set_rating(0))
-        
-        # 锁定选项
-        if is_locked:
-            menu.addAction("🔓 解锁", self._do_lock_selected)
-        else:
-            menu.addAction("🔒 锁定 (Ctrl+S)", self._do_lock_selected)
-
-        action_pin = menu.addAction("📌 取消置顶" if is_pinned else "📌 置顶")
-        action_pin.triggered.connect(self._do_toggle_pin)
-
-        action_fav = menu.addAction("🔖 取消书签" if is_fav else "🔖 添加书签")
-        action_fav.triggered.connect(self._do_toggle_favorite)
-        
-        if not is_locked:
-            action_edit = menu.addAction("✏️ 编辑")
-            action_edit.triggered.connect(self._do_edit_selected)
             menu.addSeparator()
-            action_del = menu.addAction("🗑️ 删除")
-            action_del.triggered.connect(self._do_delete_selected)
-        else:
-            menu.addSeparator()
-            del_action = menu.addAction("🗑️ 删除 (已锁定)")
-            del_action.setEnabled(False)
 
-        menu.exec_(self.list_widget.mapToGlobal(pos))
+            action_copy = menu.addAction("📋 复制内容")
+            action_copy.triggered.connect(lambda: self._copy_item_content(data))
+
+            menu.addSeparator()
+
+            # --- 星级评价 ---
+            rating_menu = menu.addMenu("⭐ 设置星级")
+            from PyQt5.QtWidgets import QActionGroup
+            star_group = QActionGroup(self)
+            star_group.setExclusive(True)
+            for i in range(1, 6):
+                action = QAction(f"{'★'*i}", self, checkable=True)
+                action.triggered.connect(lambda _, r=i: self._do_set_rating(r))
+                if rating == i:
+                    action.setChecked(True)
+                rating_menu.addAction(action)
+                star_group.addAction(action)
+
+            rating_menu.addSeparator()
+            action_clear_rating = rating_menu.addAction("清除评级")
+            action_clear_rating.triggered.connect(lambda: self._do_set_rating(0))
+
+            # 锁定选项
+            if is_locked:
+                menu.addAction("🔓 解锁", self._do_lock_selected)
+            else:
+                menu.addAction("🔒 锁定 (Ctrl+S)", self._do_lock_selected)
+
+            action_pin = menu.addAction("📌 取消置顶" if is_pinned else "📌 置顶")
+            action_pin.triggered.connect(self._do_toggle_pin)
+
+            action_fav = menu.addAction("🔖 取消书签" if is_fav else "🔖 添加书签")
+            action_fav.triggered.connect(self._do_toggle_favorite)
+
+            if not is_locked:
+                action_edit = menu.addAction("✏️ 编辑")
+                action_edit.triggered.connect(self._do_edit_selected)
+                menu.addSeparator()
+                action_del = menu.addAction("🗑️ 删除")
+                action_del.triggered.connect(self._do_delete_selected)
+            else:
+                menu.addSeparator()
+                del_action = menu.addAction("🗑️ 删除 (已锁定)")
+                del_action.setEnabled(False)
+
+            menu.exec_(self.list_widget.mapToGlobal(pos))
+        except Exception as e:
+            logging.critical(f"Critical error in _show_list_context_menu: {e}", exc_info=True)
 
     def _do_set_rating(self, rating):
         item = self.list_widget.currentItem()
@@ -1030,39 +1039,43 @@ class QuickWindow(QWidget):
 
     # --- 分区右键菜单 ---
     def _show_partition_context_menu(self, pos):
-        item = self.partition_tree.itemAt(pos)
-        menu = QMenu(self)
-        menu.setStyleSheet(f"background-color: {COLORS.get('bg_dark', '#2d2d2d')}; color: white; border: 1px solid #444;")
-        
-        if not item:
-            menu.addAction('➕ 新建分组', self._new_group)
-            menu.exec_(self.partition_tree.mapToGlobal(pos))
-            return
+        import logging
+        try:
+            item = self.partition_tree.itemAt(pos)
+            menu = QMenu(self)
+            menu.setStyleSheet(f"background-color: {COLORS.get('bg_dark', '#2d2d2d')}; color: white; border: 1px solid #444;")
 
-        data = item.data(0, Qt.UserRole)
-        
-        if data and data.get('type') == 'partition':
-            cat_id = data.get('id')
-            raw_text = item.text(0)
-            current_name = raw_text.split(' (')[0]
-
-            menu.addAction('➕ 新建数据', lambda: self._request_new_data(cat_id))
-            menu.addSeparator()
-            menu.addAction('🎨 设置颜色', lambda: self._change_color(cat_id))
-            menu.addAction('🏷️ 设置预设标签', lambda: self._set_preset_tags(cat_id))
-            menu.addSeparator()
-            menu.addAction('➕ 新建分组', self._new_group)
-            menu.addAction('➕ 新建分区', lambda: self._new_zone(cat_id))
-            menu.addAction('✏️ 重命名', lambda: self._rename_category(cat_id, current_name))
-            menu.addAction('🗑️ 删除', lambda: self._del_category(cat_id))
-            
-            menu.exec_(self.partition_tree.mapToGlobal(pos))
-        else:
-             if not item:
+            if not item:
                 menu.addAction('➕ 新建分组', self._new_group)
                 menu.exec_(self.partition_tree.mapToGlobal(pos))
-             else:
-                pass
+                return
+
+            data = item.data(0, Qt.UserRole)
+            
+            if data and data.get('type') == 'partition':
+                cat_id = data.get('id')
+                raw_text = item.text(0)
+                current_name = raw_text.split(' (')[0]
+
+                menu.addAction('➕ 新建数据', lambda: self._request_new_data(cat_id))
+                menu.addSeparator()
+                menu.addAction('🎨 设置颜色', lambda: self._change_color(cat_id))
+                menu.addAction('🏷️ 设置预设标签', lambda: self._set_preset_tags(cat_id))
+                menu.addSeparator()
+                menu.addAction('➕ 新建分组', self._new_group)
+                menu.addAction('➕ 新建分区', lambda: self._new_zone(cat_id))
+                menu.addAction('✏️ 重命名', lambda: self._rename_category(cat_id, current_name))
+                menu.addAction('🗑️ 删除', lambda: self._del_category(cat_id))
+
+                menu.exec_(self.partition_tree.mapToGlobal(pos))
+            else:
+                 if not item:
+                    menu.addAction('➕ 新建分组', self._new_group)
+                    menu.exec_(self.partition_tree.mapToGlobal(pos))
+                 else:
+                    logging.info(f"Context menu requested on a non-partition item: {item.text(0)}")
+        except Exception as e:
+            logging.critical(f"Critical error in _show_partition_context_menu: {e}", exc_info=True)
 
     def _request_new_data(self, cat_id):
         dialog = EditDialog(self.db, category_id_for_new=cat_id, parent=None)
