@@ -1079,10 +1079,19 @@ class MainWindow(QWidget):
 
     def _do_set_rating(self, rating):
         if not self.selected_ids: return
+
         for idea_id in self.selected_ids:
             self.db.set_rating(idea_id, rating)
+
+        # --- 关键修复：只刷新受影响的卡片 ---
+        for idea_id in self.selected_ids:
+            card_widget = self.cards.get(idea_id)
+            if card_widget:
+                new_data = self.db.get_idea(idea_id, include_blob=True)
+                if new_data:
+                    card_widget.update_data(new_data)
+
         self._show_tooltip(f"✅ 已设置 {len(self.selected_ids)} 项的评级")
-        QTimer.singleShot(10, self._refresh_all)
 
     def _do_lock(self):
         if not self.selected_ids: return
@@ -1224,8 +1233,17 @@ class MainWindow(QWidget):
 
     def _do_fav(self):
         if self.selected_ids:
-            for iid in self.selected_ids: self.db.toggle_field(iid, 'is_favorite')
-            self._refresh_all()
+            for iid in self.selected_ids:
+                self.db.toggle_field(iid, 'is_favorite')
+
+            # --- 关键修复：只刷新受影响的卡片 ---
+            for iid in self.selected_ids:
+                card = self.cards.get(iid)
+                if card:
+                    new_data = self.db.get_idea(iid, include_blob=True)
+                    if new_data:
+                        card.update_data(new_data)
+            self._update_ui_state()
 
     def _do_del(self):
         if self.selected_ids:

@@ -490,10 +490,17 @@ class QuickWindow(QWidget):
         menu.exec_(self.list_widget.mapToGlobal(pos))
 
     def _do_set_rating(self, rating):
+        item = self.list_widget.currentItem()
         idea_id = self._get_selected_id()
-        if idea_id:
+
+        if item and idea_id:
             self.db.set_rating(idea_id, rating)
-            self._update_list()
+
+            # --- 关键修复：只刷新当前项 ---
+            new_data = self.db.get_idea(idea_id)
+            if new_data:
+                item.setData(Qt.UserRole, new_data)
+                item.setText(self._get_content_display(new_data))
 
     def _copy_item_content(self, data):
         item_type_idx = 10
@@ -513,16 +520,21 @@ class QuickWindow(QWidget):
     
     # 锁定逻辑
     def _do_lock_selected(self):
+        item = self.list_widget.currentItem()
         iid = self._get_selected_id()
-        if not iid: return
+        if not iid or not item: return
         
         status = self.db.get_lock_status([iid])
         current_state = status.get(iid, 0)
         
         new_state = 0 if current_state else 1
         self.db.set_locked([iid], new_state)
-        
-        self._update_list()
+
+        # --- 关键修复：只刷新当前项 ---
+        new_data = self.db.get_idea(iid)
+        if new_data:
+            item.setData(Qt.UserRole, new_data)
+            item.setText(self._get_content_display(new_data))
     
     def _do_edit_selected(self):
         iid = self._get_selected_id()
@@ -561,10 +573,16 @@ class QuickWindow(QWidget):
             self._update_partition_tree()
 
     def _do_toggle_favorite(self):
+        item = self.list_widget.currentItem()
         iid = self._get_selected_id()
-        if iid:
+        if iid and item:
             self.db.toggle_field(iid, 'is_favorite')
-            self._update_list() 
+
+            # --- 关键修复：只刷新当前项 ---
+            new_data = self.db.get_idea(iid)
+            if new_data:
+                item.setData(Qt.UserRole, new_data)
+                item.setText(self._get_content_display(new_data))
 
     def _do_toggle_pin(self):
         iid = self._get_selected_id()
