@@ -322,7 +322,7 @@ class DatabaseManager:
             ''', (iid,))
         return c.fetchone()
 
-    def get_ideas(self, search, f_type, f_val, page=None, page_size=20, tag_filter=None):
+    def get_ideas(self, search, f_type, f_val, page=None, page_size=20, tag_filter=None, adv_filters=None):
         c = self.conn.cursor()
         
         # 【关键修改】显式列出所有字段，确保字段顺序绝对固定
@@ -365,6 +365,8 @@ class DatabaseManager:
         elif f_type == 'untagged': q += ' AND i.id NOT IN (SELECT idea_id FROM idea_tags)'
         elif f_type == 'bookmark': q += ' AND i.is_favorite=1'
         
+        q, p = self._apply_advanced_filters(q, p, adv_filters)
+
         if tag_filter:
             q += " AND i.id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = ?))"
             p.append(tag_filter)
@@ -387,7 +389,7 @@ class DatabaseManager:
         c.execute(q, p)
         return c.fetchall()
 
-    def get_ideas_count(self, search, f_type, f_val, tag_filter=None):
+    def get_ideas_count(self, search, f_type, f_val, tag_filter=None, adv_filters=None):
         c = self.conn.cursor()
         q = "SELECT COUNT(DISTINCT i.id) FROM ideas i LEFT JOIN idea_tags it ON i.id=it.idea_id LEFT JOIN tags t ON it.tag_id=t.id WHERE 1=1"
         p = []
@@ -402,6 +404,8 @@ class DatabaseManager:
         elif f_type == 'untagged': q += ' AND i.id NOT IN (SELECT idea_id FROM idea_tags)'
         elif f_type == 'bookmark': q += ' AND i.is_favorite=1'
         
+        q, p = self._apply_advanced_filters(q, p, adv_filters)
+
         if tag_filter:
             q += " AND i.id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = ?))"
             p.append(tag_filter)
@@ -412,6 +416,43 @@ class DatabaseManager:
             
         c.execute(q, p)
         return c.fetchone()[0]
+
+    def _apply_advanced_filters(self, q, p, adv_filters):
+        if not adv_filters:
+            return q, p
+
+        for key, values in adv_filters.items():
+            if not values: continue
+            placeholders = ','.join('?' for _ in values)
+            if key == 'stars':
+                q += f" AND i.rating IN ({placeholders})"
+                p.extend(values)
+            elif key == 'colors':
+                q += f" AND i.color IN ({placeholders})"
+                p.extend(values)
+            elif key == 'types':
+                q += f" AND i.item_type IN ({placeholders})"
+                p.extend(values)
+            elif key == 'tags' and values:
+                for tag_name in values:
+                    q += " AND EXISTS (SELECT 1 FROM idea_tags it_sub JOIN tags t_sub ON it_sub.tag_id = t_sub.id WHERE it_sub.idea_id = i.id AND t_sub.name = ?)"
+                    p.append(tag_name)
+
+            date_conditions = []
+            if key == 'date_create' or key == 'date_modify':
+                date_col = 'i.created_at' if key == 'date_create' else 'i.updated_at'
+                for v in values:
+                    if v == "今日": date_conditions.append(f"date({date_col}) = date('now')")
+                    elif v == "昨日": date_conditions.append(f"date({date_col}) = date('now', '-1 day')")
+                    elif v == "周内": date_conditions.append(f"strftime('%Y-%W', {date_col}) = strftime('%Y-%W', 'now')")
+                    elif v == "两周": date_conditions.append(f"{date_col} >= date('now', '-14 days')")
+                    elif v == "本月": date_conditions.append(f"strftime('%Y-%m', {date_col}) = strftime('%Y-%m', 'now')")
+                    elif v == "上月": date_conditions.append(f"strftime('%Y-%m', {date_col}) = strftime('%Y-%m', 'now', '-1 month')")
+
+            if date_conditions:
+                q += f" AND ({' OR '.join(date_conditions)})"
+
+        return q, p
 
     def get_tags(self, iid):
         c = self.conn.cursor()
@@ -637,3 +678,70 @@ class DatabaseManager:
             c.execute("DELETE FROM idea_tags WHERE tag_id=?", (tag_id,))
             c.execute("DELETE FROM tags WHERE id=?", (tag_id,))
             self.conn.commit()
+
+    def get_filter_stats(self):
+        """一次性查询出所有筛选器面板需要展示的统计数据"""
+        c = self.conn.cursor()
+        stats = {
+            'stars': {},
+            'colors': {},
+            'types': {},
+            'tags': [],
+            'date_create': {},
+            'date_modify': {}
+        }
+
+        base_query = "FROM ideas WHERE is_deleted=0 OR is_deleted IS NULL"
+
+        # 1. 星级
+        c.execute(f"SELECT rating, COUNT(*) {base_query} GROUP BY rating")
+        stats['stars'] = dict(c.fetchall())
+
+        # 2. 颜色
+        c.execute(f"SELECT color, COUNT(*) {base_query} GROUP BY color")
+        stats['colors'] = dict(c.fetchall())
+
+        # 3. 类型
+        c.execute(f"SELECT item_type, COUNT(*) {base_query} GROUP BY item_type")
+        stats['types'] = dict(c.fetchall())
+
+        # 4. 标签 (按使用频率排序)
+        c.execute(f"""
+            SELECT t.name, COUNT(it.idea_id) as count
+            FROM tags t
+            JOIN idea_tags it ON t.id = it.tag_id
+            JOIN ideas i ON it.idea_id = i.id
+            WHERE i.is_deleted=0 OR i.is_deleted IS NULL
+            GROUP BY t.id
+            ORDER BY count DESC, t.name ASC
+            LIMIT 50
+        """)
+        stats['tags'] = c.fetchall()
+
+        # 5. 日期
+        date_map = {
+            "今日": "date('now')",
+            "昨日": "date('now', '-1 day')",
+            "周内": "strftime('%Y-%W', 'now')",
+            "本月": "strftime('%Y-%m', 'now')",
+            "上月": "strftime('%Y-%m', 'now', '-1 month')"
+        }
+
+        for key, col in [('date_create', 'created_at'), ('date_modify', 'updated_at')]:
+            # SQLite 不支持一次性执行多个CASE WHEN的GROUP BY，需要分别查询
+            for label, date_expr in date_map.items():
+                date_format = "'%Y-%W'" if label == "周内" else "'%Y-%m'"
+                condition = f"strftime({date_format}, {col}) = {date_expr}" if label in ["周内", "本月", "上月"] else f"date({col}) = {date_expr}"
+
+                c.execute(f"SELECT COUNT(*) {base_query} AND {condition}")
+                count = c.fetchone()[0]
+                if count > 0:
+                    stats[key][label] = count
+
+            # 两周内
+            c.execute(f"SELECT COUNT(*) {base_query} AND {col} >= date('now', '-14 days')")
+            count = c.fetchone()[0]
+            if count > 0:
+                stats[key]["两周"] = count
+
+        return stats

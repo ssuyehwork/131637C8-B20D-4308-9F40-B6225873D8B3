@@ -19,6 +19,7 @@ from ui.ball import FloatingBall
 from ui.advanced_tag_selector import AdvancedTagSelector
 from ui.components.search_line_edit import SearchLineEdit
 from services.preview_service import PreviewService
+from ui.filter_panel import FilterPanel
 
 # --- 辅助类：流式布局 ---
 class FlowLayout(QLayout):
@@ -237,11 +238,15 @@ class MainWindow(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         splitter = QSplitter(Qt.Horizontal)
         
+        self.filter_panel = FilterPanel()
+        splitter.addWidget(self.filter_panel)
+
         self.sidebar = Sidebar(self.db)
         self.sidebar.filter_changed.connect(self._set_filter)
         self.sidebar.data_changed.connect(self._load_data)
         self.sidebar.new_data_requested.connect(self._on_new_data_in_category_requested)
         splitter.addWidget(self.sidebar)
+        self.filter_panel.filterChanged.connect(self._load_data)
         
         middle_panel = self._create_middle_panel()
         splitter.addWidget(middle_panel)
@@ -250,8 +255,10 @@ class MainWindow(QWidget):
         splitter.addWidget(self.tag_panel)
         
         splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 4)
-        splitter.setStretchFactor(2, 1)
+        splitter.setStretchFactor(1, 1)
+        splitter.setStretchFactor(2, 4)
+        splitter.setStretchFactor(3, 1)
+        splitter.setSizes([180, 200, 800, 220])
         
         main_layout.addWidget(splitter)
         outer_layout.addWidget(main_content)
@@ -972,9 +979,14 @@ class MainWindow(QWidget):
             self.header_label.setText(titles.get(f_type, '灵感列表'))
         
         # 延迟执行，防止在点击事件处理中销毁对象
+        QTimer.singleShot(10, self._update_filters)
         QTimer.singleShot(10, self._load_data)
         QTimer.singleShot(10, self._update_ui_state)
         QTimer.singleShot(10, self._refresh_tag_panel)
+
+    def _update_filters(self):
+        stats = self.db.get_filter_stats()
+        self.filter_panel.update_stats(stats)
 
     def _load_data(self):
         while self.list_layout.count():
@@ -982,16 +994,26 @@ class MainWindow(QWidget):
             if w: w.deleteLater()
         self.cards = {}
         self.card_ordered_ids = []
+
+        # --- 获取高级筛选条件 ---
+        adv_filters = {
+            'stars': self.filter_panel.get_checked('stars'),
+            'colors': self.filter_panel.get_checked('colors'),
+            'types': self.filter_panel.get_checked('types'),
+            'date_create': self.filter_panel.get_checked('date_create'),
+            'date_modify': self.filter_panel.get_checked('date_modify'),
+            'tags': self.filter_panel.get_checked('tags'),
+        }
         
         # 【核心补充】此处必须先计算总数，否则分页控件全是 1/1
-        total_items = self.db.get_ideas_count(self.search.text(), *self.curr_filter, tag_filter=self.current_tag_filter)
+        total_items = self.db.get_ideas_count(self.search.text(), *self.curr_filter, tag_filter=self.current_tag_filter, adv_filters=adv_filters)
         self.total_pages = math.ceil(total_items / self.page_size) if total_items > 0 else 1
         
         # 修正页码范围
         if self.current_page > self.total_pages: self.current_page = self.total_pages
         if self.current_page < 1: self.current_page = 1
 
-        data_list = self.db.get_ideas(self.search.text(), *self.curr_filter, page=self.current_page, page_size=self.page_size, tag_filter=self.current_tag_filter)
+        data_list = self.db.get_ideas(self.search.text(), *self.curr_filter, page=self.current_page, page_size=self.page_size, tag_filter=self.current_tag_filter, adv_filters=adv_filters)
         
         if not data_list:
             self.list_layout.addWidget(QLabel("🔭 空空如也", alignment=Qt.AlignCenter, styleSheet="color:#666;font-size:16px;margin-top:50px"))
@@ -1325,6 +1347,7 @@ class MainWindow(QWidget):
         if not self.isVisible(): return
         
         # 延迟执行所有刷新
+        QTimer.singleShot(10, self._update_filters)
         QTimer.singleShot(10, self._load_data)
         QTimer.singleShot(10, self.sidebar.refresh)
         QTimer.singleShot(10, self._update_ui_state)
