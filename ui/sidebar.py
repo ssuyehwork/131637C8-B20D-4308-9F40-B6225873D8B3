@@ -35,7 +35,6 @@ class Sidebar(QTreeWidget):
         self._icon_theme_colors = {
             'all_data.svg':      '#3498db',  # 蓝色 - 代表数据库/整体
             'today.svg':         '#2ecc71',  # 绿色 - 代表生机/今日活跃
-            'clipboard.svg':     '#9b59b6',  # 紫色 - 代表暂存/特殊区域
             'uncategorized.svg': '#e67e22',  # 橙色 - 代表需要整理/注意
             'untagged.svg':      '#95a5a6',  # 蓝灰 - 代表空缺/冷淡
             'favorite.svg':      '#f1c40f',  # 金色 - 代表收藏/星标
@@ -59,12 +58,6 @@ class Sidebar(QTreeWidget):
                     <path d="M7 4V8M15 4V8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     <circle cx="18" cy="18" r="3" stroke="currentColor" stroke-width="2"/>
                     <circle cx="18" cy="18" r="1" fill="currentColor"/>
-                </svg>""",
-            'clipboard.svg': """
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M16 4H18C19.1 4 20 4.9 20 6V20C20 21.1 19.1 22 18 22H6C4.9 22 4 21.1 4 20V6C4 4.9 4.9 4 6 4H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="currentColor" fill-opacity="0.2"/>
-                    <rect x="8" y="2" width="8" height="4" rx="1" stroke="currentColor" stroke-width="2"/>
-                    <path d="M8 12H16M8 16H13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>""",
             'uncategorized.svg': """
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -202,7 +195,6 @@ class Sidebar(QTreeWidget):
             system_menu_items = [
                 ("全部数据", 'all', 'all_data.svg'),
                 ("今日数据", 'today', 'today.svg'),
-                ("剪贴板数据", 'clipboard', 'clipboard.svg'),
                 ("未分类", 'uncategorized', 'uncategorized.svg'),
                 ("未标签", 'untagged', 'untagged.svg'),
                 ("收藏", 'favorite', 'favorite.svg'),

@@ -217,7 +217,6 @@ class DatabaseManager:
             )
             idea_id = c.lastrowid
             
-            self._update_tags(idea_id, ["剪贴板"])
             self.conn.commit()
             return idea_id, True
 
@@ -327,7 +326,6 @@ class DatabaseManager:
             if f_val is None: q += ' AND i.category_id IS NULL'
             else: q += ' AND i.category_id=?'; p.append(f_val)
         elif f_type == 'today': q += " AND date(i.updated_at,'localtime')=date('now','localtime')"
-        elif f_type == 'clipboard': q += " AND i.id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = '剪贴板'))"
         elif f_type == 'untagged': q += ' AND i.id NOT IN (SELECT idea_id FROM idea_tags)'
         elif f_type == 'favorite': q += ' AND i.is_favorite=1'
         
@@ -365,7 +363,6 @@ class DatabaseManager:
             if f_val is None: q += ' AND i.category_id IS NULL'
             else: q += ' AND i.category_id=?'; p.append(f_val)
         elif f_type == 'today': q += " AND date(i.updated_at,'localtime')=date('now','localtime')"
-        elif f_type == 'clipboard': q += " AND i.id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = '剪贴板'))"
         elif f_type == 'untagged': q += ' AND i.id NOT IN (SELECT idea_id FROM idea_tags)'
         elif f_type == 'favorite': q += ' AND i.is_favorite=1'
         
@@ -489,7 +486,6 @@ class DatabaseManager:
         queries = {
             'all': "is_deleted=0 OR is_deleted IS NULL",
             'today': "(is_deleted=0 OR is_deleted IS NULL) AND date(updated_at,'localtime')=date('now','localtime')",
-            'clipboard': "(is_deleted=0 OR is_deleted IS NULL) AND id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = '剪贴板'))",
             'uncategorized': "(is_deleted=0 OR is_deleted IS NULL) AND category_id IS NULL",
             'untagged': "(is_deleted=0 OR is_deleted IS NULL) AND id NOT IN (SELECT idea_id FROM idea_tags)",
             'favorite': "(is_deleted=0 OR is_deleted IS NULL) AND is_favorite=1",
