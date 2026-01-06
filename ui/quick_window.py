@@ -19,6 +19,7 @@ from ui.dialogs import EditDialog
 from ui.advanced_tag_selector import AdvancedTagSelector
 from core.config import COLORS
 from core.settings import load_setting, save_setting
+from ui.utils import create_svg_icon
 
 # ... (Win32 API 定义部分保持不变) ...
 if sys.platform == "win32":
@@ -554,10 +555,26 @@ class QuickWindow(QWidget):
         if status.get(idea_id, 0):
             return
 
-        if cat_id == -20: 
-             self.db.set_favorite(idea_id, True)
-        else:
-             self.db.move_category(idea_id, cat_id)
+        target_item = None
+        it = QTreeWidgetItemIterator(self.partition_tree)
+        while it.value():
+            item = it.value()
+            data = item.data(0, Qt.UserRole)
+            if data and data.get('id') == cat_id:
+                target_item = item
+                break
+            it += 1
+
+        if not target_item: return
+
+        target_data = target_item.data(0, Qt.UserRole)
+        target_type = target_data.get('type')
+
+        if target_type == 'favorite': self.db.set_favorite(idea_id, True)
+        elif target_type == 'trash': self.db.set_deleted(idea_id, True)
+        elif target_type == 'uncategorized': self.db.move_category(idea_id, None)
+        elif target_type == 'partition': self.db.move_category(idea_id, cat_id)
+
         self._update_list()
         self._update_partition_tree()
 
@@ -723,19 +740,15 @@ class QuickWindow(QWidget):
     def _update_list(self):
         search_text = self.search_box.text()
         current_partition = self.partition_tree.currentItem()
+        f_type, f_val = 'all', None
         if current_partition:
             partition_data = current_partition.data(0, Qt.UserRole)
             if partition_data:
-                if partition_data.get('type') == 'today':
-                    f_type, f_val = 'today', None
-                elif partition_data.get('type') == 'partition':
+                p_type = partition_data.get('type')
+                if p_type == 'partition':
                     f_type, f_val = 'category', partition_data.get('id')
-                else: # all
-                    f_type, f_val = 'all', None
-            else:
-                f_type, f_val = 'all', None
-        else:
-            f_type, f_val = 'all', None
+                elif p_type in ['all', 'today', 'uncategorized', 'untagged', 'favorite', 'trash']:
+                    f_type, f_val = p_type, None
 
         items = self.db.get_ideas(search=search_text, f_type=f_type, f_val=f_val)
         self.list_widget.clear()
@@ -815,20 +828,24 @@ class QuickWindow(QWidget):
             
         self.partition_tree.clear()
         
-        counts = self.db.get_partition_item_counts()
-        partition_counts = counts.get('partitions', {})
+        counts = self.db.get_counts()
+        partition_counts = counts.get('categories', {})
 
         static_items = [
-            ("全部数据", {'type': 'all', 'id': -1}, QStyle.SP_DirHomeIcon, counts.get('total', 0)),
-            ("今日数据", {'type': 'today', 'id': -5}, QStyle.SP_FileDialogDetailedView, counts.get('today_modified', 0)),
-            ("剪贴板数据", {'type': 'clipboard', 'id': -10}, QStyle.SP_ComputerIcon, counts.get('clipboard', 0)),
-            ("收藏", {'type': 'favorite', 'id': -20}, QStyle.SP_DialogYesButton, counts.get('favorite', 0)),
+            ("全部数据", 'all', 'all_data.svg'),
+            ("今日数据", 'today', 'today.svg'),
+            ("未分类", 'uncategorized', 'uncategorized.svg'),
+            ("未标签", 'untagged', 'untagged.svg'),
+            ("收藏", 'favorite', 'favorite.svg'),
+            ("回收站", 'trash', 'trash.svg')
         ]
         
-        for name, data, icon, count in static_items:
-            item = QTreeWidgetItem(self.partition_tree, [f"{name} ({count})"])
+        id_map = {'all': -1, 'today': -5, 'uncategorized': -15, 'untagged': -16, 'favorite': -20, 'trash': -30}
+        for name, key, icon_filename in static_items:
+            data = {'type': key, 'id': id_map.get(key)}
+            item = QTreeWidgetItem(self.partition_tree, [f"{name} ({counts.get(key, 0)})"])
             item.setData(0, Qt.UserRole, data)
-            item.setIcon(0, self.style().standardIcon(icon))
+            item.setIcon(0, create_svg_icon(icon_filename))
         
         top_level_partitions = self.db.get_partitions_tree()
         self._add_partition_recursive(top_level_partitions, self.partition_tree, partition_counts)
