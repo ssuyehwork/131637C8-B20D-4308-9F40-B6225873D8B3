@@ -4,7 +4,7 @@ import sys
 from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QApplication, QSizePolicy
 from PyQt5.QtCore import Qt, pyqtSignal, QMimeData, QSize
 from PyQt5.QtGui import QDrag, QPixmap, QImage
-from core.config import STYLES
+from core.config import STYLES, COLORS
 
 class IdeaCard(QFrame):
     # (id, is_ctrl, is_shift)
@@ -57,8 +57,9 @@ class IdeaCard(QFrame):
             is_locked = self.data[13]
         
         if is_locked:
-            lock_icon = QLabel('🔒')
-            lock_icon.setStyleSheet("background:transparent; font-size:12px;")
+            # U+FE0E 是一个变体选择器，它强制将表情符号呈现为文本，从而允许颜色样式生效。
+            lock_icon = QLabel('🔒\uFE0E')
+            lock_icon.setStyleSheet(f"background:transparent; font-size:12px; color: {COLORS['success']};")
             icon_layout.addWidget(lock_icon)
 
         if self.data[4]:  # is_pinned
