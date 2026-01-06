@@ -83,7 +83,7 @@ class DraggableListWidget(QListWidget):
         if not item: return
         data = item.data(Qt.UserRole)
         if not data: return
-        idea_id = data[0]
+        idea_id = data['id']
         mime = QMimeData()
         mime.setData('application/x-idea-id', str(idea_id).encode())
         drag = QDrag(self)
@@ -428,11 +428,11 @@ class QuickWindow(QWidget):
         data = item.data(Qt.UserRole)
         if not data: return
         
-        idea_id = data[0]
-        is_pinned = data[4]
-        is_fav = data[5]
-        is_locked = data[13] if len(data) > 13 else 0
-        rating = data[14] if len(data) > 14 else 0
+        idea_id = data['id']
+        is_pinned = data['is_pinned']
+        is_fav = data['is_favorite']
+        is_locked = data['is_locked']
+        rating = data['rating']
 
         menu = QMenu(self)
         menu.setStyleSheet("""
@@ -507,9 +507,8 @@ class QuickWindow(QWidget):
                 item.setText(self._get_content_display(new_data))
 
     def _copy_item_content(self, data):
-        item_type_idx = 10
-        item_type = data[item_type_idx] if len(data) > item_type_idx else 'text'
-        content = data[2]
+        item_type = data['item_type'] or 'text'
+        content = data['content']
         if item_type == 'text' and content:
             QApplication.clipboard().setText(content)
 
@@ -519,7 +518,7 @@ class QuickWindow(QWidget):
         item = self.list_widget.currentItem()
         if not item: return None
         data = item.data(Qt.UserRole)
-        if data: return data[0] 
+        if data: return data['id']
         return None
     
     # 锁定逻辑
@@ -803,9 +802,9 @@ class QuickWindow(QWidget):
             list_item = QListWidgetItem()
             list_item.setData(Qt.UserRole, item_tuple)
             
-            item_type = item_tuple[10] if len(item_tuple) > 10 else 'text'
+            item_type = item_tuple['item_type'] or 'text'
             if item_type == 'image':
-                blob_data = item_tuple[11] if len(item_tuple) > 11 else None
+                blob_data = item_tuple['data_blob']
                 if blob_data:
                     pixmap = QPixmap()
                     pixmap.loadFromData(blob_data)
@@ -816,8 +815,8 @@ class QuickWindow(QWidget):
             display_text = self._get_content_display(item_tuple)
             list_item.setText(display_text)
             
-            idea_id = item_tuple[0]
-            category_id = item_tuple[8]
+            idea_id = item_tuple['id']
+            category_id = item_tuple['category_id']
             
             cat_name = categories.get(category_id, "未分类")
             tags = self.db.get_tags(idea_id)
@@ -830,24 +829,24 @@ class QuickWindow(QWidget):
         if self.list_widget.count() > 0: self.list_widget.setCurrentRow(0)
 
     def _get_content_display(self, item_tuple):
-        title = item_tuple[1]
-        content = item_tuple[2]
+        title = item_tuple['title']
+        content = item_tuple['content']
         
         prefix = ""
         # 1. 星级
-        rating = item_tuple[14] if len(item_tuple) > 14 else 0
+        rating = item_tuple['rating'] or 0
         if rating > 0:
             prefix += f"{'★'*rating} "
             
         # 2. 锁定状态
-        is_locked = item_tuple[13] if len(item_tuple) > 13 else 0
+        is_locked = item_tuple['is_locked']
         if is_locked: prefix += "🔒 "
         
         # 3. 置顶和书签
-        if item_tuple[4]: prefix += "📌 "
-        if item_tuple[5]: prefix += "🔖 "
+        if item_tuple['is_pinned']: prefix += "📌 "
+        if item_tuple['is_favorite']: prefix += "🔖 "
         
-        item_type = item_tuple[10] if len(item_tuple) > 10 and item_tuple[10] else 'text'
+        item_type = item_tuple['item_type'] or 'text'
 
         text_part = ""
         if item_type == 'image':
@@ -964,27 +963,23 @@ class QuickWindow(QWidget):
         try:
             clipboard = QApplication.clipboard()
             
-            item_type_index = 10
-            item_type = item_tuple[item_type_index] if len(item_tuple) > item_type_index and item_tuple[item_type_index] else 'text'
+            item_type = item_tuple['item_type'] or 'text'
             
             if item_type == 'image':
-                blob_index = 11
-                image_blob = item_tuple[blob_index]
+                image_blob = item_tuple['data_blob']
                 if image_blob:
                     image = QImage()
                     image.loadFromData(image_blob)
                     clipboard.setImage(image)
             elif item_type == 'file':
-                content_index = 2
-                file_path_str = item_tuple[content_index]
+                file_path_str = item_tuple['content']
                 if file_path_str:
                     mime_data = QMimeData()
                     urls = [QUrl.fromLocalFile(p) for p in file_path_str.split(';') if p]
                     mime_data.setUrls(urls)
                     clipboard.setMimeData(mime_data)
             else:
-                content_index = 2
-                content_to_copy = item_tuple[content_index] if item_tuple[content_index] else ""
+                content_to_copy = item_tuple['content'] or ""
                 clipboard.setText(content_to_copy)
 
             self._paste_ditto_style()
