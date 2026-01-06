@@ -442,77 +442,81 @@ class QuickWindow(QWidget):
             QMenu::separator { background-color: #444; height: 1px; margin: 4px 0px; }
         """)
 
-        action_del, action_pin = None, None
-
+        # --- 定义所有可能的动作 ---
         action_preview = menu.addAction("👁️ 预览 (Space)")
-        action_preview.triggered.connect(self._do_preview)
-        
         menu.addSeparator()
-
         action_copy = menu.addAction("📋 复制内容")
-        action_copy.triggered.connect(lambda: self._copy_item_content(data))
-        
         menu.addSeparator()
 
-        # --- 星级评价 ---
         rating_menu = menu.addMenu("⭐ 设置星级")
         star_group = QActionGroup(self)
         star_group.setExclusive(True)
         for i in range(1, 6):
             action = QAction(f"{'★'*i}", self, checkable=True)
-            action.triggered.connect(lambda _, r=i: self._do_set_rating(r))
-            if rating == i:
-                action.setChecked(True)
+            if rating == i: action.setChecked(True)
             rating_menu.addAction(action)
             star_group.addAction(action)
-
         rating_menu.addSeparator()
         action_clear_rating = rating_menu.addAction("清除评级")
-        action_clear_rating.triggered.connect(lambda: self._do_set_rating(0))
         
-        # 锁定选项
-        if is_locked:
-            menu.addAction("🔓 解锁", self._do_lock_selected)
-        else:
-            menu.addAction("🔒 锁定 (Ctrl+S)", self._do_lock_selected)
-
+        action_lock = menu.addAction("🔓 解锁" if is_locked else "🔒 锁定 (Ctrl+S)")
         action_pin = menu.addAction("📌 取消置顶" if is_pinned else "📌 置顶")
-        action_pin.triggered.connect(self._do_toggle_pin)
-
         action_fav = menu.addAction("🔖 取消书签" if is_fav else "🔖 添加书签")
-        action_fav.triggered.connect(self._do_toggle_favorite)
         
+        action_edit, action_del = None, None
         if not is_locked:
             action_edit = menu.addAction("✏️ 编辑")
-            action_edit.triggered.connect(self._do_edit_selected)
             menu.addSeparator()
             action_del = menu.addAction("🗑️ 删除")
-            action_del.triggered.connect(self._do_delete_selected)
         else:
             menu.addSeparator()
-            del_action = menu.addAction("🗑️ 删除 (已锁定)")
-            del_action.setEnabled(False)
+            del_action_locked = menu.addAction("🗑️ 删除 (已锁定)")
+            del_action_locked.setEnabled(False)
 
-        action = menu.exec_(self.list_widget.mapToGlobal(pos))
+        # --- 弹出菜单并获取用户的选择 ---
+        triggered_action = menu.exec_(self.list_widget.mapToGlobal(pos))
 
-        # 检查是否有需要刷新列表的动作被触发
-        if action in [action_del, action_pin] and action is not None:
-             self._update_list()
-             self._update_partition_tree()
+        # 如果没有选择任何动作，则直接返回
+        if not triggered_action:
+            return
 
+        # --- 根据用户的选择，先执行数据库操作 ---
+        if triggered_action == action_preview:
+            self._do_preview()
+        elif triggered_action == action_copy:
+            self._copy_item_content(data)
+        elif triggered_action in star_group.actions():
+            rating_value = star_group.actions().index(triggered_action) + 1
+            self._do_set_rating(rating_value)
+        elif triggered_action == action_clear_rating:
+            self._do_set_rating(0)
+        elif triggered_action == action_lock:
+            self._do_lock_selected()
+        elif triggered_action == action_pin:
+            self._do_toggle_pin()
+        elif triggered_action == action_fav:
+            self._do_toggle_favorite()
+        elif triggered_action == action_edit:
+            self._do_edit_selected()
+        elif triggered_action == action_del:
+            self._do_delete_selected()
+
+        # --- 然后，安全地更新UI ---
+        # 需要完整刷新的操作
+        if triggered_action in [action_del, action_pin]:
+            self._update_list()
+            if triggered_action == action_del:
+                self._update_partition_tree()
+        # 只需要原地更新单个项目的操作
+        elif triggered_action in [action_lock, action_fav, action_clear_rating] or triggered_action in star_group.actions():
+            # self._update_single_item_ui(idea_id) # 不再需要，因为各自的函数会自己更新
+            pass
 
     def _do_set_rating(self, rating):
-        item = self.list_widget.currentItem()
         idea_id = self._get_selected_id()
-        
-        if item and idea_id:
+        if idea_id:
             self.db.set_rating(idea_id, rating)
-            
-            # --- 关键修复：只刷新当前项 ---
-            new_data = self.db.get_idea(idea_id)
-            if new_data:
-                item.setData(Qt.UserRole, new_data)
-                item.setText(self._get_content_display(new_data))
+            self._update_single_item_ui(idea_id)
 
     def _copy_item_content(self, data):
         item_type_idx = 10
@@ -532,21 +536,15 @@ class QuickWindow(QWidget):
     
     # 锁定逻辑
     def _do_lock_selected(self):
-        item = self.list_widget.currentItem()
         iid = self._get_selected_id()
-        if not iid or not item: return
+        if not iid: return
         
         status = self.db.get_lock_status([iid])
         current_state = status.get(iid, 0)
         
         new_state = 0 if current_state else 1
         self.db.set_locked([iid], new_state)
-
-        # --- 关键修复：只刷新当前项 ---
-        new_data = self.db.get_idea(iid)
-        if new_data:
-            item.setData(Qt.UserRole, new_data)
-            item.setText(self._get_content_display(new_data))
+        self._update_single_item_ui(iid)
     
     def _do_edit_selected(self):
         iid = self._get_selected_id()
@@ -579,20 +577,13 @@ class QuickWindow(QWidget):
             status = self.db.get_lock_status([iid])
             if status.get(iid, 0):
                 return
-                
             self.db.set_deleted(iid, True)
 
     def _do_toggle_favorite(self):
-        item = self.list_widget.currentItem()
         iid = self._get_selected_id()
-        if iid and item:
+        if iid:
             self.db.toggle_field(iid, 'is_favorite')
-
-            # --- 关键修复：只刷新当前项 ---
-            new_data = self.db.get_idea(iid)
-            if new_data:
-                item.setData(Qt.UserRole, new_data)
-                item.setText(self._get_content_display(new_data))
+            self._update_single_item_ui(iid)
 
     def _do_toggle_pin(self):
         iid = self._get_selected_id()
@@ -864,6 +855,22 @@ class QuickWindow(QWidget):
             text_part = text_part.replace('\n', ' ').replace('\r', '').strip()[:150]
             
         return prefix + text_part
+
+    def _update_single_item_ui(self, idea_id):
+        if not idea_id:
+            return
+
+        # 遍历查找对应的item
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            data = item.data(Qt.UserRole)
+            if data and data[0] == idea_id:
+                # 获取最新数据并更新UI
+                new_data = self.db.get_idea(idea_id)
+                if new_data:
+                    item.setData(Qt.UserRole, new_data)
+                    item.setText(self._get_content_display(new_data))
+                break # 找到后即可退出循环
 
     def _create_color_icon(self, color_str):
         pixmap = QPixmap(16, 16)
