@@ -566,30 +566,6 @@ class DatabaseManager:
                 
         return tree
 
-    def get_partition_item_counts(self):
-        c = self.conn.cursor()
-        counts = {'partitions': {}}
-
-        c.execute("SELECT COUNT(*) FROM ideas WHERE is_deleted=0")
-        counts['total'] = c.fetchone()[0]
-
-        c.execute("SELECT COUNT(*) FROM ideas WHERE is_deleted=0 AND date(updated_at, 'localtime') = date('now', 'localtime')")
-        counts['today_modified'] = c.fetchone()[0]
-        
-        c.execute("SELECT category_id, COUNT(*) FROM ideas WHERE is_deleted=0 GROUP BY category_id")
-        for cat_id, count in c.fetchall():
-            if cat_id is not None:
-                counts['partitions'][cat_id] = count
-
-        # Add missing counts
-        c.execute("SELECT COUNT(*) FROM ideas i JOIN idea_tags it ON i.id = it.idea_id JOIN tags t ON it.tag_id = t.id WHERE t.name = '剪贴板' AND i.is_deleted=0")
-        counts['clipboard'] = c.fetchone()[0]
-
-        c.execute("SELECT COUNT(*) FROM ideas WHERE is_favorite=1 AND is_deleted=0")
-        counts['bookmark'] = c.fetchone()[0]
-
-        return counts
-    
     def save_category_order(self, update_list):
         c = self.conn.cursor()
         try:

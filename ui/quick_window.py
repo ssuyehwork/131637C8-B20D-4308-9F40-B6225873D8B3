@@ -65,7 +65,6 @@ except ImportError:
     class DBManager:
         def get_items(self, **kwargs): return []
         def get_partitions_tree(self): return []
-        def get_partition_item_counts(self): return {}
     class ClipboardManager(QObject):
         data_captured = pyqtSignal()
         def __init__(self, db_manager):
