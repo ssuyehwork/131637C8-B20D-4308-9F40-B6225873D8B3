@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 # ui/sidebar.py
 import random
+import os
+from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QInputDialog, 
                              QFrame, QColorDialog, QDialog, QVBoxLayout, QLabel, QLineEdit, 
                              QPushButton, QHBoxLayout, QApplication, QWidget, QStyle)
-from PyQt5.QtCore import Qt, pyqtSignal, QSize, QEvent, QTimer
-from PyQt5.QtGui import QFont, QColor, QPixmap, QPainter, QIcon, QCursor
+from PyQt5.QtCore import Qt, pyqtSignal, QSize, QEvent, QTimer, QByteArray
+from PyQt5.QtGui import QFont, QColor, QPixmap, QPainter, QIcon, QCursor, QPalette
 from core.config import COLORS
 from ui.advanced_tag_selector import AdvancedTagSelector
 
@@ -25,6 +27,7 @@ class Sidebar(QTreeWidget):
         self.db = db
         self.setHeaderHidden(True)
         self.setIndentation(15)
+        self._icon_cache = {}
         
         self.setCursor(Qt.ArrowCursor)
         
@@ -83,6 +86,36 @@ class Sidebar(QTreeWidget):
         self.customContextMenuRequested.connect(self._show_menu)
         self.refresh_sync()
 
+    def _create_svg_icon(self, icon_name):
+        text_color = self.palette().color(QPalette.WindowText).name()
+        cache_key = (icon_name, text_color)
+
+        if cache_key in self._icon_cache:
+            return self._icon_cache[cache_key]
+
+        icon_path = os.path.join("ui", "icons", icon_name)
+        if not os.path.exists(icon_path):
+            return QIcon()
+
+        with open(icon_path, 'r', encoding='utf-8') as f:
+            svg_data = f.read()
+
+        svg_data = svg_data.replace("currentColor", text_color)
+
+        renderer = QSvgRenderer(QByteArray(svg_data.encode('utf-8')))
+
+        icon_size = self.style().pixelMetric(QStyle.PM_SmallIconSize)
+        pixmap = QPixmap(icon_size, icon_size)
+        pixmap.fill(Qt.transparent)
+
+        painter = QPainter(pixmap)
+        renderer.render(painter)
+        painter.end()
+
+        icon = QIcon(pixmap)
+        self._icon_cache[cache_key] = icon
+        return icon
+
     def enterEvent(self, event):
         self.setCursor(Qt.ArrowCursor)
         super().enterEvent(event)
@@ -100,22 +133,19 @@ class Sidebar(QTreeWidget):
             counts = self.db.get_counts()
 
             system_menu_items = [
-                ("全部数据", 'all', QStyle.SP_DirHomeIcon), ("今日数据", 'today', '📅'),
-                ("剪贴板数据", 'clipboard', '📋'),
-                ("未分类", 'uncategorized', '⚠️'), ("未标签", 'untagged', '🏷️'),
-                ("收藏", 'favorite', '⭐'), ("回收站", 'trash', '🗑️')
+                ("全部数据", 'all', 'all_data.svg'),
+                ("今日数据", 'today', 'today.svg'),
+                ("剪贴板数据", 'clipboard', 'clipboard.svg'),
+                ("未分类", 'uncategorized', 'uncategorized.svg'),
+                ("未标签", 'untagged', 'untagged.svg'),
+                ("收藏", 'favorite', 'favorite.svg'),
+                ("回收站", 'trash', 'trash.svg')
             ]
 
-            for name, key, icon_data in system_menu_items:
-                text = f"{name} ({counts.get(key, 0)})"
-
-                if isinstance(icon_data, str):
-                    item = QTreeWidgetItem(self, [f"{icon_data}  {text}"])
-                else:
-                    item = QTreeWidgetItem(self, [text])
-                    icon = self.style().standardIcon(icon_data)
-                    item.setIcon(0, icon)
-
+            for name, key, icon_filename in system_menu_items:
+                item = QTreeWidgetItem(self, [f"{name} ({counts.get(key, 0)})"])
+                icon = self._create_svg_icon(icon_filename)
+                item.setIcon(0, icon)
                 item.setData(0, Qt.UserRole, (key, None))
                 item.setFlags(item.flags() & ~Qt.ItemIsDragEnabled)
                 item.setExpanded(False)
