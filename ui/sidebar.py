@@ -8,6 +8,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QSize, QEvent, QTimer
 from PyQt5.QtGui import QFont, QColor, QPixmap, QPainter, QIcon, QCursor
 from core.config import COLORS
 from ui.advanced_tag_selector import AdvancedTagSelector
+from ui.utils import create_svg_icon
 
 class ClickableLineEdit(QLineEdit):
     doubleClicked = pyqtSignal()
@@ -99,20 +100,26 @@ class Sidebar(QTreeWidget):
             counts = self.db.get_counts()
 
             system_menu_items = [
-                ("全部数据", 'all', '🗂️'), ("今日数据", 'today', '📅'),
-                ("剪贴板数据", 'clipboard', '📋'),
-                ("未分类", 'uncategorized', '⚠️'), ("未标签", 'untagged', '🏷️'),
-                ("收藏", 'favorite', '⭐'),
+                ("全部数据", 'all', 'all_data.svg'),
+                ("今日数据", 'today', 'today.svg'),
+                ("剪贴板数据", 'clipboard', 'clipboard.svg'),
+                ("未分类", 'uncategorized', 'uncategorized.svg'),
+                ("未标签", 'untagged', 'untagged.svg'),
+                ("书签", 'favorite', 'bookmark.svg'),
             ]
 
-            for name, key, icon in system_menu_items:
-                item = QTreeWidgetItem(self, [f"{icon}  {name} ({counts.get(key, 0)})"])
+            for name, key, icon_name in system_menu_items:
+                item = QTreeWidgetItem(self)
+                item.setText(0, f" {name} ({counts.get(key, 0)})")
+                item.setIcon(0, create_svg_icon(icon_name)) # 使用默认主题色
                 item.setData(0, Qt.UserRole, (key, None))
                 item.setFlags(item.flags() & ~Qt.ItemIsDragEnabled)
                 item.setExpanded(False)
 
             # --- 星级筛选 (可折叠) ---
-            rating_root = QTreeWidgetItem(self, ["⭐  星级"])
+            rating_root = QTreeWidgetItem(self)
+            rating_root.setText(0, " 星级")
+            rating_root.setIcon(0, create_svg_icon('rating.svg')) # 使用默认主题色
             rating_root.setFlags(rating_root.flags() & ~Qt.ItemIsDragEnabled)
             for i in range(5, 0, -1):
                 star_str = "★" * i
@@ -122,7 +129,9 @@ class Sidebar(QTreeWidget):
                 child.setFlags(child.flags() & ~Qt.ItemIsDragEnabled)
 
             # --- 回收站 ---
-            trash_item = QTreeWidgetItem(self, [f"🗑️  回收站 ({counts.get('trash', 0)})"])
+            trash_item = QTreeWidgetItem(self)
+            trash_item.setText(0, f" 回收站 ({counts.get('trash', 0)})")
+            trash_item.setIcon(0, create_svg_icon('trash.svg')) # 使用默认主题色
             trash_item.setData(0, Qt.UserRole, ('trash', None))
             trash_item.setFlags(trash_item.flags() & ~Qt.ItemIsDragEnabled)
 
@@ -145,8 +154,12 @@ class Sidebar(QTreeWidget):
             layout.addWidget(line)
             self.setItemWidget(sep_item, 0, container)
 
-            user_partitions_root = QTreeWidgetItem(self, ["🗃️ 我的分区"])
+            user_partitions_root = QTreeWidgetItem(self)
+            user_partitions_root.setText(0, " 我的分区")
+            user_partitions_root.setIcon(0, create_svg_icon('archive.svg')) # 使用默认主题色
+
             user_partitions_root.setFlags(user_partitions_root.flags() & ~Qt.ItemIsSelectable & ~Qt.ItemIsDragEnabled)
+            user_partitions_root.setData(0, Qt.UserRole, ('partitions_root', None)) # 添加唯一标识
             font = user_partitions_root.font(0)
             font.setBold(True)
             user_partitions_root.setFont(0, font)
@@ -265,12 +278,15 @@ class Sidebar(QTreeWidget):
         menu = QMenu(self)
         menu.setStyleSheet("background:#2d2d2d;color:white")
 
-        if not item or item.text(0) == "🗃️ 我的分区":
+        data = item.data(0, Qt.UserRole) if item else None
+
+        # 如果没有点击到项目，或者点击的是 "我的分区" 根节点
+        if not item or (data and data[0] == 'partitions_root'):
             menu.addAction('➕ 组', self._new_group)
             menu.exec_(self.mapToGlobal(pos))
             return
 
-        data = item.data(0, Qt.UserRole)
+        if not data: return
         if not data: return
 
         # 回收站右键菜单
