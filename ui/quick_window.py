@@ -405,6 +405,10 @@ class QuickWindow(QWidget):
         
         # 【新增】锁定快捷键
         QShortcut(QKeySequence("Ctrl+S"), self, self._do_lock_selected)
+
+        # 【新增】星级评分快捷键 Ctrl+0 到 Ctrl+5
+        for i in range(6):
+            QShortcut(QKeySequence(f"Ctrl+{i}"), self, lambda r=i: self._do_set_rating(r))
         
         # 监听空格键：预览
         self.space_shortcut = QShortcut(QKeySequence(Qt.Key_Space), self)

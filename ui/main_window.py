@@ -269,6 +269,10 @@ class MainWindow(QWidget):
         
         # 【新增】Ctrl+S 锁定/解锁快捷键
         QShortcut(QKeySequence("Ctrl+S"), self, self._do_lock)
+
+        # 【新增】星级评分快捷键 Ctrl+0 到 Ctrl+5
+        for i in range(6):
+            QShortcut(QKeySequence(f"Ctrl+{i}"), self, lambda r=i: self._do_set_rating(r))
         
         self.space_shortcut = QShortcut(QKeySequence(Qt.Key_Space), self)
         self.space_shortcut.setContext(Qt.WindowShortcut)
