@@ -245,6 +245,26 @@ class DatabaseManager:
     def set_favorite(self, iid, state):
         c = self.conn.cursor()
         c.execute('UPDATE ideas SET is_favorite=? WHERE id=?', (1 if state else 0, iid))
+
+        if state:
+            # When bookmarking, set the color to the bookmark color.
+            bookmark_color = '#ff6b81'
+            c.execute('UPDATE ideas SET color=? WHERE id=?', (bookmark_color, iid))
+        else:
+            # When un-bookmarking, revert the color based on its category.
+            c.execute('SELECT category_id FROM ideas WHERE id=?', (iid,))
+            res = c.fetchone()
+            if res and res[0] is not None:
+                cat_id = res[0]
+                c.execute('SELECT color FROM categories WHERE id=?', (cat_id,))
+                cat_res = c.fetchone()
+                if cat_res:
+                    c.execute('UPDATE ideas SET color=? WHERE id=?', (cat_res[0], iid))
+            else:
+                # If no category, revert to the default uncategorized color.
+                uncat_color = COLORS.get('uncategorized', '#0A362F')
+                c.execute('UPDATE ideas SET color=? WHERE id=?', (uncat_color, iid))
+
         self.conn.commit()
 
     def set_rating(self, idea_id, rating):
