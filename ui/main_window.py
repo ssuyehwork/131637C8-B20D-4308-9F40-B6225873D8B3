@@ -1010,11 +1010,15 @@ class MainWindow(QWidget):
         self._update_ui_state()
 
     def _show_card_menu(self, idea_id, pos):
+        selection_changed = False
         if idea_id not in self.selected_ids:
             self.selected_ids = {idea_id}
             self.last_clicked_id = idea_id
             self._update_all_card_selections()
-            self._update_ui_state()
+            selection_changed = True
+
+        self._update_main_actions_state() # 立即更新按钮，这是安全的
+
         data = self.db.get_idea(idea_id)
         if not data: return
         menu = QMenu(self)
@@ -1077,7 +1081,12 @@ class MainWindow(QWidget):
             menu.addAction('🗑️ 永久删除', self._do_destroy)
             
         card = self.cards.get(idea_id)
-        if card: menu.exec_(card.mapToGlobal(pos))
+        if card:
+            menu.exec_(card.mapToGlobal(pos))
+
+        # 只有在选择集变化时，才在菜单关闭后刷新标签面板
+        if selection_changed:
+            QTimer.singleShot(0, self._refresh_tag_panel)
 
     def _do_set_rating(self, rating):
         if not self.selected_ids: return
@@ -1177,7 +1186,7 @@ class MainWindow(QWidget):
         for iid, card in self.cards.items():
             card.update_selection(iid in self.selected_ids)
 
-    def _update_ui_state(self):
+    def _update_main_actions_state(self):
         in_trash = (self.curr_filter[0] == 'trash')
         selection_count = len(self.selected_ids)
         has_selection = selection_count > 0
@@ -1196,6 +1205,9 @@ class MainWindow(QWidget):
         else:
             self.btns['pin'].setText('📌')
             self.btns['fav'].setText('🔖')
+
+    def _update_ui_state(self):
+        self._update_main_actions_state()
         # 【关键修复】异步刷新标签面板
         QTimer.singleShot(0, self._refresh_tag_panel)
 
