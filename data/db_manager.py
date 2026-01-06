@@ -363,7 +363,7 @@ class DatabaseManager:
             else: q += ' AND i.category_id=?'; p.append(f_val)
         elif f_type == 'today': q += " AND date(i.updated_at,'localtime')=date('now','localtime')"
         elif f_type == 'untagged': q += ' AND i.id NOT IN (SELECT idea_id FROM idea_tags)'
-        elif f_type == 'favorite': q += ' AND i.is_favorite=1'
+        elif f_type == 'bookmark': q += ' AND i.is_favorite=1'
         
         if tag_filter:
             q += " AND i.id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = ?))"
@@ -400,7 +400,7 @@ class DatabaseManager:
             else: q += ' AND i.category_id=?'; p.append(f_val)
         elif f_type == 'today': q += " AND date(i.updated_at,'localtime')=date('now','localtime')"
         elif f_type == 'untagged': q += ' AND i.id NOT IN (SELECT idea_id FROM idea_tags)'
-        elif f_type == 'favorite': q += ' AND i.is_favorite=1'
+        elif f_type == 'bookmark': q += ' AND i.is_favorite=1'
         
         if tag_filter:
             q += " AND i.id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = ?))"
@@ -586,7 +586,7 @@ class DatabaseManager:
         counts['clipboard'] = c.fetchone()[0]
 
         c.execute("SELECT COUNT(*) FROM ideas WHERE is_favorite=1 AND is_deleted=0")
-        counts['favorite'] = c.fetchone()[0]
+        counts['bookmark'] = c.fetchone()[0]
 
         return counts
     
