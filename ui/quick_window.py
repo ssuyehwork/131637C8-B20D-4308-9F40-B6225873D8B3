@@ -427,8 +427,8 @@ class QuickWindow(QWidget):
         idea_id = data[0]
         is_pinned = data[4]
         is_fav = data[5]
-        # 获取锁定状态
         is_locked = data[13] if len(data) > 13 else 0
+        rating = data[14] if len(data) > 14 else 0
 
         menu = QMenu(self)
         menu.setStyleSheet("""
@@ -447,6 +447,22 @@ class QuickWindow(QWidget):
         action_copy.triggered.connect(lambda: self._copy_item_content(data))
         
         menu.addSeparator()
+
+        # --- 星级评价 ---
+        rating_menu = menu.addMenu("⭐ 设置星级")
+        star_group = QActionGroup(self)
+        star_group.setExclusive(True)
+        for i in range(1, 6):
+            action = QAction(f"{'★'*i}{'☆'*(5-i)}", self, checkable=True)
+            action.triggered.connect(lambda _, r=i: self._do_set_rating(r))
+            if rating == i:
+                action.setChecked(True)
+            rating_menu.addAction(action)
+            star_group.addAction(action)
+
+        rating_menu.addSeparator()
+        action_clear_rating = rating_menu.addAction("清除评级")
+        action_clear_rating.triggered.connect(lambda: self._do_set_rating(0))
         
         # 锁定选项
         if is_locked:
@@ -457,7 +473,7 @@ class QuickWindow(QWidget):
         action_pin = menu.addAction("📌 取消置顶" if is_pinned else "📌 置顶")
         action_pin.triggered.connect(self._do_toggle_pin)
 
-        action_fav = menu.addAction("⭐ 取消收藏" if is_fav else "⭐ 收藏")
+        action_fav = menu.addAction("🌟 取消收藏" if is_fav else "🌟 收藏")
         action_fav.triggered.connect(self._do_toggle_favorite)
         
         if not is_locked:
@@ -472,6 +488,12 @@ class QuickWindow(QWidget):
             del_action.setEnabled(False)
 
         menu.exec_(self.list_widget.mapToGlobal(pos))
+
+    def _do_set_rating(self, rating):
+        idea_id = self._get_selected_id()
+        if idea_id:
+            self.db.set_rating(idea_id, rating)
+            self._update_list()
 
     def _copy_item_content(self, data):
         item_type_idx = 10
@@ -790,12 +812,18 @@ class QuickWindow(QWidget):
         content = item_tuple[2]
         
         prefix = ""
-        # 显示锁定状态前缀
+        # 1. 星级
+        rating = item_tuple[14] if len(item_tuple) > 14 else 0
+        if rating > 0:
+            prefix += f"{'★'*rating}{'☆'*(5-rating)} "
+
+        # 2. 锁定状态
         is_locked = item_tuple[13] if len(item_tuple) > 13 else 0
         if is_locked: prefix += "🔒 "
         
+        # 3. 置顶和收藏
         if item_tuple[4]: prefix += "📌 "
-        if item_tuple[5]: prefix += "⭐ "
+        if item_tuple[5]: prefix += "🌟 "
         
         item_type = item_tuple[10] if len(item_tuple) > 10 and item_tuple[10] else 'text'
 

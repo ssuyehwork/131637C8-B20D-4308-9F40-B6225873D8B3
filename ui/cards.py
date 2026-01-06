@@ -49,15 +49,17 @@ class IdeaCard(QFrame):
         icon_layout = QHBoxLayout()
         icon_layout.setSpacing(4)
         
-        # 锁定状态判断: 数据列最后一位是 is_locked
-        # 假设数据列顺序: 0-id ... 13-is_locked (如果表结构是新建的)
-        # 为稳健起见，尝试获取最后一位，如果是 1 则显示锁
-        is_locked = False
-        if len(self.data) >= 14:
-            is_locked = self.data[13]
-        
+        # --- 星级 ---
+        rating = self.data[14] if len(self.data) > 14 else 0
+        if rating > 0:
+            rating_text = f"{'★'*rating}{'☆'*(5-rating)}"
+            rating_label = QLabel(rating_text)
+            rating_label.setStyleSheet(f"background:transparent; font-size:12px; color: {COLORS['favorite']};")
+            icon_layout.addWidget(rating_label)
+
+        # --- 锁定、置顶、收藏 ---
+        is_locked = self.data[13] if len(self.data) > 13 else 0
         if is_locked:
-            # U+FE0E 是一个变体选择器，它强制将表情符号呈现为文本，从而允许颜色样式生效。
             lock_icon = QLabel('🔒\uFE0E')
             lock_icon.setStyleSheet(f"background:transparent; font-size:12px; color: {COLORS['success']};")
             icon_layout.addWidget(lock_icon)
@@ -67,7 +69,7 @@ class IdeaCard(QFrame):
             pin_icon.setStyleSheet("background:transparent; font-size:12px;")
             icon_layout.addWidget(pin_icon)
         if self.data[5]:  # is_favorite
-            fav_icon = QLabel('⭐')
+            fav_icon = QLabel('🌟') # 使用空心星以区分
             fav_icon.setStyleSheet("background:transparent; font-size:12px;")
             icon_layout.addWidget(fav_icon)
             

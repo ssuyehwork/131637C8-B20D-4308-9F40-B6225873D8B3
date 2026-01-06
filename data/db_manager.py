@@ -44,7 +44,8 @@ class DatabaseManager:
             ('item_type', "TEXT DEFAULT 'text'"),
             ('data_blob', 'BLOB'),
             ('content_hash', 'TEXT'),
-            ('is_locked', 'INTEGER DEFAULT 0')
+            ('is_locked', 'INTEGER DEFAULT 0'),
+            ('rating', 'INTEGER DEFAULT 0')
         ]
         
         for col, type_def in updates:
@@ -246,6 +247,12 @@ class DatabaseManager:
         c.execute('UPDATE ideas SET is_favorite=? WHERE id=?', (1 if state else 0, iid))
         self.conn.commit()
 
+    def set_rating(self, idea_id, rating):
+        c = self.conn.cursor()
+        rating = max(0, min(5, int(rating)))
+        c.execute('UPDATE ideas SET rating=? WHERE id=?', (rating, idea_id))
+        self.conn.commit()
+
     def move_category(self, iid, cat_id):
         c = self.conn.cursor()
         c.execute('UPDATE ideas SET category_id=?, is_deleted=0 WHERE id=?', (cat_id, iid))
@@ -274,15 +281,23 @@ class DatabaseManager:
     def get_idea(self, iid, include_blob=False):
         c = self.conn.cursor()
         if include_blob:
-            c.execute('SELECT * FROM ideas WHERE id=?', (iid,))
+            # Making SELECT * explicit to guarantee column order for consumers.
+            # 0:id, 1:title, 2:content, 3:color, 4:pinned, 5:fav, 6:created, 7:updated,
+            # 8:cat_id, 9:is_deleted, 10:item_type, 11:data_blob, 12:hash, 13:is_locked, 14:rating
+            c.execute('''
+                SELECT id, title, content, color, is_pinned, is_favorite,
+                       created_at, updated_at, category_id, is_deleted, item_type,
+                       data_blob, content_hash, is_locked, rating
+                FROM ideas WHERE id=?
+            ''', (iid,))
         else:
             # 明确指定列，与 get_ideas 保持一致 (无blob)
             # 0:id, 1:title, 2:content, 3:color, 4:pinned, 5:fav, 6:created, 7:updated, 
-            # 8:cat_id, 9:is_deleted, 10:item_type, 11:data_blob(NULL), 12:hash(NULL), 13:is_locked
+            # 8:cat_id, 9:is_deleted, 10:item_type, 11:data_blob(NULL), 12:hash(NULL), 13:is_locked, 14:rating
             c.execute('''
                 SELECT id, title, content, color, is_pinned, is_favorite, 
                        created_at, updated_at, category_id, is_deleted, item_type, 
-                       NULL as data_blob, NULL as content_hash, is_locked 
+                       NULL as data_blob, NULL as content_hash, is_locked, rating
                 FROM ideas WHERE id=?
             ''', (iid,))
         return c.fetchone()
@@ -306,12 +321,13 @@ class DatabaseManager:
         # 11: data_blob
         # 12: content_hash
         # 13: is_locked
+        # 14: rating
         
         q = """
             SELECT DISTINCT 
                 i.id, i.title, i.content, i.color, i.is_pinned, i.is_favorite, 
                 i.created_at, i.updated_at, i.category_id, i.is_deleted, 
-                i.item_type, i.data_blob, i.content_hash, i.is_locked
+                i.item_type, i.data_blob, i.content_hash, i.is_locked, i.rating
             FROM ideas i 
             LEFT JOIN idea_tags it ON i.id=it.idea_id 
             LEFT JOIN tags t ON it.tag_id=t.id 
