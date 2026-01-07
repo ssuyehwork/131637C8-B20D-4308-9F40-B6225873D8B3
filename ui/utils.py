@@ -16,13 +16,20 @@ _icon_theme_colors = {
     'uncategorized.svg': '#e67e22',
     'untagged.svg':      '#95a5a6',
     'bookmark.svg':      '#ff6b81',
-    'trash.svg':         '#e74c3c'
+    'trash.svg':         '#e74c3c',
+    'select.svg':        '#1abc9c'
 }
 
 # ==========================================
 # 💎 内置 SVG 图标数据
 # ==========================================
 _system_icons = {
+    'select.svg': """
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9.5 13.75L6.5 10.75" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M17.5 8.75L9.5 16.75" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M20 12.5V15.22C20 18.88 18.88 20 15.22 20H8.78C5.12 20 4 18.88 4 15.22V8.78C4 5.12 5.12 4 8.78 4H12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>""",
     'all_data.svg': """
         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M4 14.5C4 12.5 7.58 11 12 11C16.42 11 20 12.5 20 14.5V17.5C20 19.5 16.42 21 12 21C7.58 21 4 19.5 4 17.5V14.5Z" fill="currentColor" fill-opacity="0.2"/>
