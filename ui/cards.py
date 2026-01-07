@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # ui/cards.py
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
-from PyQt5.QtCore import Qt, pyqtSignal, QPoint
-from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QLinearGradient
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QApplication
+from PyQt5.QtCore import Qt, pyqtSignal, QPoint, QMimeData, QByteArray
+from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QLinearGradient, QDrag
 from domain.entities import Idea
 
 class IdeaCard(QWidget):
@@ -67,7 +67,7 @@ class IdeaCard(QWidget):
         body_layout.addWidget(content_widget, 1)
         
         main_layout.addLayout(body_layout)
-        
+
         self.update_data(self.idea)
 
     def update_data(self, idea_entity: Idea):
@@ -123,10 +123,39 @@ class IdeaCard(QWidget):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
+            self.drag_start_pos = event.pos()
             is_ctrl = event.modifiers() & Qt.ControlModifier
             is_shift = event.modifiers() & Qt.ShiftModifier
             self.selection_requested.emit(self.idea.id, bool(is_ctrl), bool(is_shift))
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if not (event.buttons() & Qt.LeftButton):
+            return
+        if (event.pos() - self.drag_start_pos).manhattanLength() < QApplication.startDragDistance():
+            return
+
+        drag = QDrag(self)
+        mime_data = QMimeData()
+
+        # Set the ID for dropping on the sidebar
+        mime_data.setData('application/x-idea-id', QByteArray(str(self.idea.id).encode()))
+
+        # If multiple items are selected, provide all their IDs
+        if self.get_selected_ids_func:
+            selected_ids = self.get_selected_ids_func()
+            if len(selected_ids) > 1 and self.idea.id in selected_ids:
+                ids_str = ",".join(map(str, selected_ids))
+                mime_data.setData('application/x-idea-ids', QByteArray(ids_str.encode()))
+
+        drag.setMimeData(mime_data)
+
+        # Create a pixmap of the card for the drag preview
+        pixmap = self.grab()
+        drag.setPixmap(pixmap)
+        drag.setHotSpot(event.pos())
+
+        drag.exec_(Qt.CopyAction | Qt.MoveAction)
 
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.LeftButton:
