@@ -193,30 +193,85 @@ class InfoWidget(QWidget):
 
         layout.addStretch(1)
 
+# --- 辅助类：带圆角的胶囊(徽章) ---
+class CapsuleWidget(QLabel):
+    def __init__(self, text, bg_color, text_color="white", parent=None):
+        super().__init__(text, parent)
+        self.setStyleSheet(f"""
+            background-color: {bg_color};
+            color: {text_color};
+            padding: 3px 8px;
+            border-radius: 9px;
+            font-size: 11px;
+            font-weight: bold;
+        """)
+
 # --- 辅助类：元数据展示 ---
 class MetadataDisplay(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(0, 5, 0, 5)
-        self.layout.setSpacing(8)
+        self.layout.setContentsMargins(0, 10, 0, 5)
+        self.layout.setSpacing(16)
         self.layout.setAlignment(Qt.AlignTop)
 
-    def _add_row(self, label, value):
-        row = QWidget()
-        row_layout = QHBoxLayout(row)
+    def _add_row(self, icon_name, widget_or_text):
+        row_widget = QWidget()
+        row_layout = QHBoxLayout(row_widget)
         row_layout.setContentsMargins(0,0,0,0)
+        row_layout.setSpacing(10)
 
-        lbl = QLabel(label)
-        lbl.setStyleSheet("font-size: 11px; color: #888; border: none; min-width: 60px;")
-        row_layout.addWidget(lbl)
+        icon = QLabel()
+        icon.setPixmap(create_svg_icon(icon_name).pixmap(16, 16))
+        icon.setFixedSize(16, 16)
+        row_layout.addWidget(icon)
 
-        val = QLabel(value)
-        val.setWordWrap(True)
-        val.setStyleSheet("font-size: 12px; color: #ddd; border: none;")
-        row_layout.addWidget(val)
+        if isinstance(widget_or_text, QWidget):
+            row_layout.addWidget(widget_or_text)
+        else:
+            value_label = QLabel(str(widget_or_text))
+            value_label.setStyleSheet("font-size: 12px; color: #ddd; border: none;")
+            row_layout.addWidget(value_label)
 
-        self.layout.addWidget(row)
+        self.layout.addWidget(row_widget)
+
+    def _create_stars_widget(self, rating):
+        stars_widget = QWidget()
+        stars_layout = QHBoxLayout(stars_widget)
+        stars_layout.setContentsMargins(0,0,0,0)
+        stars_layout.setSpacing(2)
+
+        star_icon_filled = create_svg_icon('star.svg')
+        star_icon_empty = create_svg_icon('star.svg')
+
+        for i in range(5):
+            star = QLabel()
+            pixmap = QPixmap(16, 16)
+            pixmap.fill(Qt.transparent)
+            painter = QPainter(pixmap)
+
+            if i < rating:
+                painter.setCompositionMode(QPainter.CompositionMode_Source)
+                painter.fillRect(pixmap.rect(), QColor("#f39c12"))
+                painter.setCompositionMode(QPainter.CompositionMode_DestinationIn)
+                star_icon_filled.paint(painter, pixmap.rect())
+            else:
+                star_icon_empty.paint(painter, pixmap.rect())
+
+            painter.end()
+            star.setPixmap(pixmap)
+            stars_layout.addWidget(star)
+
+        stars_layout.addStretch()
+        return stars_widget
+
+    def _create_capsules_widget(self, items, color_map):
+        capsules_widget = QWidget()
+        capsules_layout = FlowLayout(capsules_widget, margin=0, spacing=6)
+        for item in items:
+            color = color_map.get(item, "#333")
+            capsules_layout.addWidget(CapsuleWidget(item, color))
+        return capsules_widget
 
     def update_data(self, data, tags, category_name):
         # Clear old data
@@ -227,23 +282,33 @@ class MetadataDisplay(QWidget):
 
         if not data: return
 
-        self._add_row("创建于", data['created_at'][:16])
-        self._add_row("更新于", data['updated_at'][:16])
-        self._add_row("分类", category_name if category_name else "未分类")
+        self._add_row("calendar.svg", data['created_at'][:16])
+        self._add_row("calendar.svg", data['updated_at'][:16])
+        self._add_row("folder.svg", category_name if category_name else "未分类")
 
-        # --- 状态行 ---
+        # --- 星级 ---
+        stars_widget = self._create_stars_widget(data['rating'])
+        self._add_row("star.svg", stars_widget)
+
+        # --- 状态 ---
         states = []
+        state_colors = { "置顶": "#3498db", "锁定": "#e74c3c", "书签": "#ff6b81" }
         if data['is_pinned']: states.append("置顶")
         if data['is_locked']: states.append("锁定")
         if data['is_favorite']: states.append("书签")
-        self._add_row("状态", ", ".join(states) if states else "无")
-
-        # --- 星级 ---
-        rating_str = '★' * data['rating'] + '☆' * (5 - data['rating'])
-        self._add_row("星级", rating_str)
+        if states:
+            states_widget = self._create_capsules_widget(states, state_colors)
+            self._add_row("pin.svg", states_widget)
 
         # --- 标签 ---
-        self._add_row("标签", ", ".join(tags) if tags else "无")
+        if tags:
+            tag_colors = {}
+            for tag in tags:
+                hash_val = sum(ord(c) for c in tag)
+                colors = ["#1abc9c", "#2ecc71", "#9b59b6", "#e67e22", "#34495e"]
+                tag_colors[tag] = colors[hash_val % len(colors)]
+            tags_widget = self._create_capsules_widget(tags, tag_colors)
+            self._add_row("tag.svg", tags_widget)
 
 
 class MainWindow(QWidget):
