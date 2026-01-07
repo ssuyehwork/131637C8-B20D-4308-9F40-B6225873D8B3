@@ -1,300 +1,134 @@
 # -*- coding: utf-8 -*-
 # ui/cards.py
-import sys
-from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QApplication, QSizePolicy, QWidget
-from PyQt5.QtCore import Qt, pyqtSignal, QMimeData, QSize
-from PyQt5.QtGui import QDrag, QPixmap, QImage, QPainter
-from core.config import STYLES, COLORS
-from ui.utils import create_svg_icon
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
+from PyQt5.QtCore import Qt, pyqtSignal, QPoint
+from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QLinearGradient
+from domain.entities import Idea
 
-class IdeaCard(QFrame):
+class IdeaCard(QWidget):
     selection_requested = pyqtSignal(int, bool, bool)
     double_clicked = pyqtSignal(int)
 
-    def __init__(self, data, db, parent=None):
+    def __init__(self, idea_entity: Idea, parent=None):
         super().__init__(parent)
-        self.setAttribute(Qt.WA_StyledBackground)
-        self.db = db
-        self.setCursor(Qt.PointingHandCursor)
+        self.idea = idea_entity
+        self.is_selected = False
         
-        # 设置合适的大小策略，使卡片能够适应容器
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-        
-        # 设置最小高度，防止卡片被压缩得太矮
         self.setMinimumHeight(120)
+        self.setFixedWidth(300) # Initial width, will be adjusted by layout
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.setAttribute(Qt.WA_StyledBackground, True)
         
-        self._drag_start_pos = None
-        self._is_potential_click = False
-        self.get_selected_ids_func = None
+        # Main layout
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
         
-        self._setup_ui_structure()
-        self.update_data(data)
+        # Color bar
+        self.color_bar = QFrame()
+        self.color_bar.setFixedWidth(5)
+        
+        # Content layout
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(12, 10, 12, 10)
+        content_layout.setSpacing(6)
+        
+        # Title
+        self.title = QLabel()
+        self.title.setWordWrap(True)
+        self.title.setStyleSheet("font-size: 14px; font-weight: bold; color: #e0e0e0;")
+        
+        # Content snippet
+        self.content = QLabel()
+        self.content.setWordWrap(True)
+        self.content.setStyleSheet("font-size: 12px; color: #a0a0a0;")
+        
+        # Footer layout (for icons and tags)
+        footer_layout = QHBoxLayout()
+        footer_layout.setContentsMargins(0, 5, 0, 0)
+        
+        self.icon_area = QLabel() # To display icons like pin, lock, bookmark
+        self.rating_area = QLabel() # To display stars
+        
+        footer_layout.addWidget(self.icon_area)
+        footer_layout.addWidget(self.rating_area)
+        footer_layout.addStretch()
+        
+        content_layout.addWidget(self.title)
+        content_layout.addWidget(self.content)
+        content_layout.addStretch()
+        content_layout.addLayout(footer_layout)
+        
+        # Combine color bar and content
+        body_layout = QHBoxLayout()
+        body_layout.setContentsMargins(0,0,0,0); body_layout.setSpacing(0)
+        body_layout.addWidget(self.color_bar)
+        body_layout.addWidget(content_widget, 1)
+        
+        main_layout.addLayout(body_layout)
+        
+        self.update_data(self.idea)
 
-    def update_data(self, data):
-        self.data = data
-        self.id = data[0]
-        self._refresh_ui_content()
+    def update_data(self, idea_entity: Idea):
+        self.idea = idea_entity
+        
+        self.title.setText(self.idea.title)
+        
+        # Generate a concise content snippet
+        snippet = self.idea.content.replace('\n', ' ').strip()
+        if len(snippet) > 100:
+            snippet = snippet[:100] + '...'
+        self.content.setText(snippet)
+        
+        # Update color bar and background based on idea color
+        base_color = QColor(self.idea.color)
+        self.color_bar.setStyleSheet(f"background-color: {base_color.name()};")
+        
+        # Update icons
+        icons_str = ""
+        if self.idea.is_pinned: icons_str += "📌 "
+        if self.idea.is_locked: icons_str += "🔒 "
+        if self.idea.is_favorite: icons_str += "⭐ " # Using star for bookmark for simplicity
+        self.icon_area.setText(icons_str)
+        
+        # Update rating
+        rating_str = '★' * self.idea.rating + '☆' * (5 - self.idea.rating)
+        self.rating_area.setText(rating_str)
+        self.rating_area.setStyleSheet(f"color: {COLORS.get('star', '#FFD700')};")
 
-    def _setup_ui_structure(self):
-        self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(10, 8, 10, 8)  # 减小边距以增加内容可用宽度
-        self.main_layout.setSpacing(6)  # 减小间距
+        self.update_selection(self.is_selected) # Refresh visual state
 
-        # 1. Top Section
-        top_layout = QHBoxLayout()
-        top_layout.setSpacing(8)
-        self.title_label = QLabel()
-        self.title_label.setStyleSheet("font-size:15px; font-weight:bold; background:transparent; color:white;")
-        self.title_label.setWordWrap(True)
-        self.title_label.setContentsMargins(0, 0, 5, 0)  # 添加右边距
-        top_layout.addWidget(self.title_label, stretch=1)
-        
-        self.icon_layout = QHBoxLayout()
-        self.icon_layout.setSpacing(4)
-        
-        # 初始化为不带文本的 QLabel，用于承载 SVG Pixmap
-        self.rating_label = QLabel() # 将显示星级 SVG 拼接图
-        self.lock_icon = QLabel()
-        self.pin_icon = QLabel()
-        self.fav_icon = QLabel()
-        
-        # 统一设置 Label 属性
-        for icon in [self.rating_label, self.lock_icon, self.pin_icon, self.fav_icon]:
-            icon.setStyleSheet("background: transparent; border: none;")
-            icon.setAlignment(Qt.AlignCenter)
-            self.icon_layout.addWidget(icon)
-            
-        top_layout.addLayout(self.icon_layout)
-        self.main_layout.addLayout(top_layout)
-
-        # 2. Middle Section (Content)
-        self.content_widget = QFrame() # Placeholder for text or image
-        self.content_widget.setStyleSheet("background:transparent; border:none;")
-        self.content_layout = QVBoxLayout(self.content_widget)
-        self.content_layout.setContentsMargins(0,0,0,0)
-        self.main_layout.addWidget(self.content_widget)
-
-        # 3. Bottom Section
-        bot_layout = QHBoxLayout()
-        bot_layout.setSpacing(6)
-        
-        # 时间图标
-        self.time_icon = QLabel()
-        self.time_icon.setFixedSize(14, 14)
-        self.time_icon.setPixmap(create_svg_icon("calendar.svg", "rgba(255,255,255,100)").pixmap(14, 14))
-        self.time_icon.setStyleSheet("background: transparent;")
-        
-        self.time_label = QLabel()
-        self.time_label.setStyleSheet("color:rgba(255,255,255,100); font-size:11px; background:transparent;")
-        
-        bot_layout.addWidget(self.time_icon)
-        bot_layout.addWidget(self.time_label)
-        bot_layout.addStretch()
-        self.tags_layout = QHBoxLayout()
-        self.tags_layout.setSpacing(4)
-        bot_layout.addLayout(self.tags_layout)
-        self.main_layout.addLayout(bot_layout)
-
-    def _refresh_ui_content(self):
-        # 1. Refresh Top
-        self.title_label.setText(self.data[1])
-        
-        rating = self.data[14] if len(self.data) > 14 else 0
-        is_locked = self.data[13] if len(self.data) > 13 else 0
-        is_pinned = self.data[4]
-        is_favorite = self.data[5]
-
-        # Rating 星级渲染为 SVG Pixmap
-        if rating > 0:
-            self.rating_label.setPixmap(self._generate_stars_pixmap(rating))
-            self.rating_label.show()
+    def update_selection(self, is_selected):
+        self.is_selected = is_selected
+        if self.is_selected:
+            self.setStyleSheet(f"""
+                QWidget {{
+                    background-color: {COLORS['bg_light']};
+                    border: 1px solid {COLORS['primary']};
+                    border-radius: 6px;
+                }}
+            """)
         else:
-            self.rating_label.hide()
-            
-        # 图标渲染为 SVG
-        if is_locked:
-            self.lock_icon.setPixmap(create_svg_icon("lock.svg", COLORS['success']).pixmap(14, 14))
-            self.lock_icon.show()
-        else:
-            self.lock_icon.hide()
+            self.setStyleSheet(f"""
+                QWidget {{
+                    background-color: {COLORS['bg_mid']};
+                    border: 1px solid {COLORS['bg_light']};
+                    border-radius: 6px;
+                }}
+                QWidget:hover {{
+                    background-color: #3a3a3a;
+                }}
+            """)
 
-        if is_pinned:
-            self.pin_icon.setPixmap(create_svg_icon("action_pin.svg", "#cccccc").pixmap(14, 14))
-            self.pin_icon.show()
-        else:
-            self.pin_icon.hide()
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            is_ctrl = event.modifiers() & Qt.ControlModifier
+            is_shift = event.modifiers() & Qt.ShiftModifier
+            self.selection_requested.emit(self.idea.id, bool(is_ctrl), bool(is_shift))
+        super().mousePressEvent(event)
 
-        if is_favorite:
-            self.fav_icon.setPixmap(create_svg_icon("bookmark.svg", "#ff6b81").pixmap(14, 14))
-            self.fav_icon.show()
-        else:
-            self.fav_icon.hide()
-
-        # 2. Refresh Middle
-        while self.content_layout.count():
-            item = self.content_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        
-        item_type = self.data[10] if len(self.data) > 10 and self.data[10] else 'text'
-        if item_type == 'image' and self.data[11]:
-            pixmap = QPixmap()
-            pixmap.loadFromData(self.data[11])
-            if not pixmap.isNull():
-                img_label = QLabel()
-                max_h = 160
-                if pixmap.height() > max_h: pixmap = pixmap.scaledToHeight(max_h, Qt.SmoothTransformation)
-                if pixmap.width() > 400: pixmap = pixmap.scaledToWidth(400, Qt.SmoothTransformation)
-                img_label.setPixmap(pixmap)
-                img_label.setStyleSheet("background: transparent;")
-                self.content_layout.addWidget(img_label)
-        elif self.data[2]:
-            preview_text = self.data[2].strip()[:300].replace('\n', ' ')
-            if len(self.data[2]) > 300: preview_text += "..."
-            content = QLabel(preview_text)
-            content.setStyleSheet("color: rgba(255,255,255,180); margin-top: 2px; background: transparent; font-size: 13px; line-height: 1.4;")
-            content.setWordWrap(True)
-            content.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-            
-            # 【核心修改】移除最大高度限制，允许内容自动伸展
-            content.setMinimumHeight(40)  
-            # content.setMaximumHeight(80) # <--- 已移除
-            
-            # 设置策略，允许垂直方向占据更多空间
-            content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-            
-            content.setContentsMargins(0, 0, 0, 0)
-            self.content_layout.addWidget(content)
-
-        # 3. Refresh Bottom
-        self.time_label.setText(f'{self.data[7][:16]}')
-        while self.tags_layout.count():
-            item = self.tags_layout.takeAt(0)
-            if item.widget(): item.widget().deleteLater()
-        
-        tags = self.db.get_tags(self.id)
-        for i, tag in enumerate(tags):
-            if i >= 3:
-                more_label = QLabel(f'+{len(tags) - 3}')
-                more_label.setStyleSheet(f"background: rgba(74,144,226,0.3); border-radius: 4px; padding: 2px 6px; font-size: 10px; color: {COLORS['primary']}; font-weight:bold;")
-                self.tags_layout.addWidget(more_label)
-                break
-            tag_label = QLabel(f"#{tag}")
-            tag_label.setStyleSheet("background: rgba(255,255,255,0.1); border-radius: 4px; padding: 2px 6px; font-size: 10px; color: rgba(255,255,255,180);")
-            self.tags_layout.addWidget(tag_label)
-
-        self.update_selection(False)
-
-    def _generate_stars_pixmap(self, rating):
-        """生成星星评分的 Pixmap 图像"""
-        star_size = 12
-        spacing = 2
-        total_width = (star_size * rating) + (spacing * (rating - 1))
-        
-        pixmap = QPixmap(total_width, star_size)
-        pixmap.fill(Qt.transparent)
-        
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.Antialiasing)
-        
-        star_icon = create_svg_icon("star_filled.svg", COLORS['warning'])
-        
-        for i in range(rating):
-            x = i * (star_size + spacing)
-            star_icon.paint(painter, x, 0, star_size, star_size)
-            
-        painter.end()
-        return pixmap
-
-    def update_selection(self, selected):
-        bg_color = self.data[3]
-        
-        # 基础样式
-        base_style = f"""
-            IdeaCard {{
-                background-color: {bg_color};
-                {STYLES['card_base']}
-                padding: 0px;
-            }}
-            QLabel {{
-                background-color: transparent;
-                border: none;
-            }}
-        """
-
-        if selected:
-            # 选中状态：白色粗边框
-            border_style = "border: 2px solid white;"
-        else:
-            # 未选中状态：透明微弱边框，悬停变亮
-            border_style = """
-                border: 1px solid rgba(255,255,255,0.1);
-            """
-            
-        # 合并 hover 效果到样式表中
-        final_style = base_style + f"""
-            IdeaCard {{ {border_style} }}
-            IdeaCard:hover {{
-                border: 2px solid #CCCCCC; /* 改为不透明浅灰色，避免与背景叠加产生白点 */
-            }}
-        """
-        
-        if selected:
-            final_style += """
-                IdeaCard:hover {
-                    border: 2px solid white;
-                }
-            """
-            
-        self.setStyleSheet(final_style)
-
-    def mousePressEvent(self, e):
-        if e.button() == Qt.LeftButton:
-            self._drag_start_pos = e.pos()
-            self._is_potential_click = True
-        super().mousePressEvent(e)
-
-    def mouseMoveEvent(self, e):
-        if not (e.buttons() & Qt.LeftButton) or not self._drag_start_pos:
-            return
-        
-        if (e.pos() - self._drag_start_pos).manhattanLength() < QApplication.startDragDistance():
-            return
-        
-        self._is_potential_click = False
-        
-        drag = QDrag(self)
-        mime = QMimeData()
-        
-        ids_to_move = [self.id]
-        if self.get_selected_ids_func:
-            selected_ids = self.get_selected_ids_func()
-            if self.id in selected_ids:
-                ids_to_move = selected_ids
-        
-        mime.setData('application/x-idea-ids', (','.join(map(str, ids_to_move))).encode('utf-8'))
-        mime.setData('application/x-idea-id', str(self.id).encode())
-        
-        drag.setMimeData(mime)
-        
-        pixmap = self.grab().scaledToWidth(200, Qt.SmoothTransformation)
-        drag.setPixmap(pixmap)
-        drag.setHotSpot(e.pos())
-        
-        drag.exec_(Qt.MoveAction)
-        
-    def mouseReleaseEvent(self, e):
-        if self._is_potential_click and e.button() == Qt.LeftButton:
-            modifiers = QApplication.keyboardModifiers()
-            is_ctrl = bool(modifiers & Qt.ControlModifier)
-            is_shift = bool(modifiers & Qt.ShiftModifier)
-            self.selection_requested.emit(self.id, is_ctrl, is_shift)
-
-        self._drag_start_pos = None
-        self._is_potential_click = False
-        super().mouseReleaseEvent(e)
-
-    def mouseDoubleClickEvent(self, e):
-        if e.button() == Qt.LeftButton:
-            self.double_clicked.emit(self.id)
-        super().mouseDoubleClickEvent(e)
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.double_clicked.emit(self.idea.id)
+        super().mouseDoubleClickEvent(event)
