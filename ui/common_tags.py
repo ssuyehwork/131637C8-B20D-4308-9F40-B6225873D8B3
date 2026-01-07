@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import QWidget, QHBoxLayout, QPushButton
 from PyQt5.QtCore import Qt, pyqtSignal
 from core.config import COLORS
 from core.settings import load_setting
+from ui.utils import create_svg_icon
 
 class CommonTags(QWidget):
     """
@@ -85,24 +86,22 @@ class CommonTags(QWidget):
             btn.clicked.connect(lambda _, n=name: self.tag_clicked.emit(n))
             self.layout.addWidget(btn)
 
-        # 编辑按钮 (始终显示在最后)
-        btn_edit = QPushButton("✎")
+        # 编辑按钮 (始终显示在最后) - 核心修复：替换 Unicode 铅笔为 SVG
+        btn_edit = QPushButton()
+        btn_edit.setIcon(create_svg_icon("pencil.svg", "#888"))
         btn_edit.setToolTip("管理常用标签 (排序/显隐/数量)")
         btn_edit.setCursor(Qt.PointingHandCursor)
+        btn_edit.setFixedSize(20, 20)
         btn_edit.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
-                color: #888;
                 border: 1px solid #666;
                 border-radius: 10px;
-                width: 20px;
-                height: 20px;
-                padding: 0px;
-                font-size: 10px;
+                padding: 2px;
             }}
             QPushButton:hover {{
                 background-color: #444;
-                color: white;
+                border-color: #888;
             }}
         """)
         btn_edit.clicked.connect(self.manager_requested.emit)

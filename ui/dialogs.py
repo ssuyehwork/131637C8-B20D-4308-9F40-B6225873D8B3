@@ -11,50 +11,7 @@ from PyQt5.QtCore import Qt, QPoint, QRect, QEvent, pyqtSignal
 from core.config import STYLES, COLORS
 from core.settings import save_setting, load_setting
 from .components.rich_text_edit import RichTextEdit
-
-# 自定义深灰色滚动条样式
-SCROLLBAR_STYLE = """
-QScrollBar:vertical {
-    border: none;
-    background: #222222;
-    width: 10px;
-    margin: 0px 0px 0px 0px;
-}
-QScrollBar::handle:vertical {
-    background: #555555;
-    min-height: 20px;
-    border-radius: 5px;
-}
-QScrollBar::handle:vertical:hover {
-    background: #666666;
-}
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-    height: 0px;
-}
-QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-    background: none;
-}
-QScrollBar:horizontal {
-    border: none;
-    background: #222222;
-    height: 10px;
-    margin: 0px 0px 0px 0px;
-}
-QScrollBar::handle:horizontal {
-    background: #555555;
-    min-width: 20px;
-    border-radius: 5px;
-}
-QScrollBar::handle:horizontal:hover {
-    background: #666666;
-}
-QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-    width: 0px;
-}
-QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
-    background: none;
-}
-"""
+from ui.utils import create_svg_icon
 
 class BaseDialog(QDialog):
     def __init__(self, parent=None, window_title="快速笔记"):
@@ -74,12 +31,13 @@ class BaseDialog(QDialog):
         
         self.content_container = QWidget()
         self.content_container.setObjectName("DialogContainer")
+        # 移除了内联 SCROLLBAR_STYLE，由 config.py STYLES['dialog'] 统一提供
         self.content_container.setStyleSheet(f"""
             #DialogContainer {{
                 background-color: {COLORS['bg_dark']};
                 border-radius: 12px;
             }}
-        """ + STYLES['dialog'] + SCROLLBAR_STYLE)
+        """ + STYLES['dialog'])
         
         self.outer_layout.addWidget(self.content_container)
         
@@ -178,25 +136,28 @@ class EditDialog(BaseDialog):
         tb_layout.addStretch()
         
         ctrl_btn_style = """
-            QPushButton { background: transparent; border: none; color: #aaa; border-radius: 4px; font-size: 14px; width: 30px; height: 30px; }
-            QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); color: white; }
+            QPushButton { background: transparent; border: none; border-radius: 4px; width: 30px; height: 30px; }
+            QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }
         """
         close_btn_style = """
-            QPushButton { background: transparent; border: none; color: #aaa; border-radius: 4px; font-size: 16px; width: 30px; height: 30px; }
-            QPushButton:hover { background-color: #e74c3c; color: white; }
+            QPushButton { background: transparent; border: none; border-radius: 4px; width: 30px; height: 30px; }
+            QPushButton:hover { background-color: #e74c3c; }
         """
         
-        btn_min = QPushButton("─")
+        btn_min = QPushButton()
+        btn_min.setIcon(create_svg_icon("win_min.svg", "#aaa"))
         btn_min.setStyleSheet(ctrl_btn_style)
         btn_min.clicked.connect(self.showMinimized)
         
-        self.btn_max = QPushButton("□")
+        self.btn_max = QPushButton()
+        self.btn_max.setIcon(create_svg_icon("win_max.svg", "#aaa"))
         self.btn_max.setStyleSheet(ctrl_btn_style)
         self.btn_max.clicked.connect(self._toggle_maximize)
         
-        btn_close = QPushButton("×")
+        btn_close = QPushButton()
+        btn_close.setIcon(create_svg_icon("win_close.svg", "#aaa"))
         btn_close.setStyleSheet(close_btn_style)
-        btn_close.clicked.connect(self.close)  # 【修复】改为 close() 而非 reject()
+        btn_close.clicked.connect(self.close) 
         
         tb_layout.addWidget(btn_min)
         tb_layout.addWidget(self.btn_max)
@@ -231,20 +192,7 @@ class EditDialog(BaseDialog):
         left_panel.addWidget(QLabel('📂 分区'))
         self.category_combo = QComboBox()
         self.category_combo.setFixedHeight(40)
-        self.category_combo.setStyleSheet(STYLES['combo_box'] if 'combo_box' in STYLES else f"""
-            QComboBox {{
-                background-color: {COLORS['bg_mid']};
-                border: 1px solid {COLORS['bg_light']};
-                border-radius: 6px;
-                padding: 5px;
-                color: #ddd;
-            }}
-            QComboBox::drop-down {{ border: none; }}
-            QComboBox QAbstractItemView {{
-                background-color: {COLORS['bg_dark']};
-                selection-background-color: {COLORS['primary']};
-            }}
-        """)
+        # 样式由 config.py STYLES['dialog'] 提供，不需内联
         
         # 加载分区数据
         self.category_combo.addItem("🚫 未分类", None)
@@ -314,7 +262,8 @@ class EditDialog(BaseDialog):
         
         left_panel.addStretch()
         
-        self.save_btn = QPushButton('💾 保存 (Ctrl+S)')
+        self.save_btn = QPushButton('  保存 (Ctrl+S)')
+        self.save_btn.setIcon(create_svg_icon("action_save.svg", "white"))
         self.save_btn.setCursor(Qt.PointingHandCursor)
         self.save_btn.setFixedHeight(50)
         self.save_btn.setStyleSheet(STYLES['btn_primary'])
@@ -333,13 +282,14 @@ class EditDialog(BaseDialog):
         
         # --- 基本编辑按钮 ---
         btn_style = """
-            QPushButton { background: transparent; border: 1px solid #444; border-radius: 4px; color: #ccc; margin-left: 2px; }
-            QPushButton:hover { background-color: #444; color: white; }
+            QPushButton { background: transparent; border: 1px solid #444; border-radius: 4px; margin-left: 2px; }
+            QPushButton:hover { background-color: #444; }
         """
         
-        def _create_tool_btn(text, tooltip, callback):
-            btn = QPushButton(text)
-            btn.setFixedSize(24, 24)
+        def _create_tool_btn(icon_name, tooltip, callback):
+            btn = QPushButton()
+            btn.setIcon(create_svg_icon(icon_name, '#ccc'))
+            btn.setFixedSize(28, 28)
             btn.setToolTip(tooltip)
             btn.setStyleSheet(btn_style)
             btn.setCursor(Qt.PointingHandCursor)
@@ -348,41 +298,48 @@ class EditDialog(BaseDialog):
             return btn
 
         header_layout.addSpacing(10)
-        _create_tool_btn("↩", "撤销 (Ctrl+Z)", lambda: self.content_inp.undo())
-        _create_tool_btn("↪", "重做 (Ctrl+Y)", lambda: self.content_inp.redo())
+        _create_tool_btn("edit_undo.svg", "撤销 (Ctrl+Z)", lambda: self.content_inp.undo())
+        _create_tool_btn("edit_redo.svg", "重做 (Ctrl+Y)", lambda: self.content_inp.redo())
         header_layout.addSpacing(5)
-        _create_tool_btn("•", "无序列表", lambda: self.content_inp.toggle_list(QTextListFormat.ListDisc))
-        _create_tool_btn("1.", "有序列表", lambda: self.content_inp.toggle_list(QTextListFormat.ListDecimal))
-        _create_tool_btn("🧹", "清除格式", lambda: self.content_inp.setCurrentCharFormat(QTextCharFormat()))
+        _create_tool_btn("edit_list_ul.svg", "无序列表", lambda: self.content_inp.toggle_list(QTextListFormat.ListDisc))
+        _create_tool_btn("edit_list_ol.svg", "有序列表", lambda: self.content_inp.toggle_list(QTextListFormat.ListDecimal))
+        _create_tool_btn("edit_clear.svg", "清除格式", lambda: self.content_inp.setCurrentCharFormat(QTextCharFormat()))
 
         header_layout.addStretch()
         
-        # 高亮按钮组
+        # 高亮按钮组 (保留颜色块，清除按钮用SVG)
         highlight_colors = [
-            ('#c0392b', '🔴'), # 红
-            ('#d35400', '🟠'), # 橙
-            ('#f1c40f', '🟡'), # 黄 (注意: 暗色下可能需要深一点，这里用金黄色)
-            ('#27ae60', '🟢'), # 绿
-            ('#2980b9', '🔵'), # 蓝
-            ('#8e44ad', '🟣'), # 紫
-            (None, '🚫')      # 清除
+            ('#c0392b', None), 
+            ('#d35400', None),
+            ('#f1c40f', None),
+            ('#27ae60', None),
+            ('#2980b9', None),
+            ('#8e44ad', None),
+            (None, 'edit_clear.svg') # 清除
         ]
         
         for color, icon in highlight_colors:
-            btn = QPushButton(icon)
+            btn = QPushButton()
             btn.setFixedSize(24, 24)
             btn.setCursor(Qt.PointingHandCursor)
-            btn.setToolTip("清除高亮" if color is None else "高亮文字")
-            # 按钮样式
-            btn.setStyleSheet(f"""
-                QPushButton {{ 
-                    background-color: transparent; 
-                    border: 1px solid #444; 
-                    border-radius: 4px; 
-                    margin-left: 2px;
-                }}
-                QPushButton:hover {{ background-color: #444; }}
-            """)
+            
+            if icon:
+                btn.setIcon(create_svg_icon(icon, '#ccc'))
+                btn.setToolTip("清除高亮")
+                btn.setStyleSheet(btn_style)
+            else:
+                btn.setToolTip("高亮文字")
+                # 颜色块样式
+                btn.setStyleSheet(f"""
+                    QPushButton {{ 
+                        background-color: {color}; 
+                        border: 1px solid #444; 
+                        border-radius: 12px; 
+                        margin-left: 2px;
+                    }}
+                    QPushButton:hover {{ border-color: white; }}
+                """)
+            
             btn.clicked.connect(lambda _, c=color: self.content_inp.highlight_selection(c))
             header_layout.addWidget(btn)
             
@@ -401,20 +358,23 @@ class EditDialog(BaseDialog):
         self.search_inp.setStyleSheet("border: none; background: transparent; color: #fff;")
         self.search_inp.returnPressed.connect(self._find_next)
         
-        btn_prev = QPushButton("⬆")
+        btn_prev = QPushButton()
+        btn_prev.setIcon(create_svg_icon("nav_prev.svg", "#ccc"))
         btn_prev.setFixedSize(24, 24)
         btn_prev.clicked.connect(self._find_prev)
-        btn_prev.setStyleSheet("background: transparent; border: none; color: #ccc;")
+        btn_prev.setStyleSheet("background: transparent; border: none;")
         
-        btn_next = QPushButton("⬇")
+        btn_next = QPushButton()
+        btn_next.setIcon(create_svg_icon("nav_next.svg", "#ccc"))
         btn_next.setFixedSize(24, 24)
         btn_next.clicked.connect(self._find_next)
-        btn_next.setStyleSheet("background: transparent; border: none; color: #ccc;")
+        btn_next.setStyleSheet("background: transparent; border: none;")
         
-        btn_cls = QPushButton("×")
+        btn_cls = QPushButton()
+        btn_cls.setIcon(create_svg_icon("win_close.svg", "#ccc"))
         btn_cls.setFixedSize(24, 24)
         btn_cls.clicked.connect(lambda: self.search_bar.hide())
-        btn_cls.setStyleSheet("background: transparent; border: none; color: #ccc;")
+        btn_cls.setStyleSheet("background: transparent; border: none;")
         
         sb_layout.addWidget(QLabel("🔍"))
         sb_layout.addWidget(self.search_inp)
@@ -426,17 +386,7 @@ class EditDialog(BaseDialog):
 
         self.content_inp = RichTextEdit()
         self.content_inp.setPlaceholderText("在这里记录详细内容（支持粘贴图片）...")
-        self.content_inp.setStyleSheet("""
-            QTextEdit {
-                background-color: #2a2a2a;
-                border: 1px solid #444;
-                border-radius: 8px;
-                padding: 10px;
-                font-size: 14px;
-                color: #eee;
-                selection-background-color: #4a90e2; 
-            }
-        """)
+        # 样式由 config.py 提供
         
         # 绑定 Ctrl+F
         shortcut_search = QShortcut(QKeySequence("Ctrl+F"), self.content_inp)
@@ -539,7 +489,7 @@ class EditDialog(BaseDialog):
     def _toggle_maximize(self):
         if self.isMaximized():
             self.showNormal()
-            self.btn_max.setText('□')
+            self.btn_max.setIcon(create_svg_icon("win_max.svg", "#aaa"))
             self.outer_layout.setContentsMargins(15, 15, 15, 15)
             
             # 恢复圆角样式
@@ -548,7 +498,7 @@ class EditDialog(BaseDialog):
                     background-color: {COLORS['bg_dark']};
                     border-radius: 12px;
                 }}
-            """ + STYLES['dialog'] + SCROLLBAR_STYLE)
+            """ + STYLES['dialog'])
             
             self.title_bar.setStyleSheet(f"""
                 QWidget {{
@@ -560,7 +510,7 @@ class EditDialog(BaseDialog):
             """)
         else:
             self.showMaximized()
-            self.btn_max.setText('❐')
+            self.btn_max.setIcon(create_svg_icon("win_restore.svg", "#aaa"))
             self.outer_layout.setContentsMargins(0, 0, 0, 0)
             
             # 去除圆角样式（直角）
@@ -569,7 +519,7 @@ class EditDialog(BaseDialog):
                     background-color: {COLORS['bg_dark']};
                     border-radius: 0px;
                 }}
-            """ + STYLES['dialog'] + SCROLLBAR_STYLE)
+            """ + STYLES['dialog'])
             
             self.title_bar.setStyleSheet(f"""
                 QWidget {{
@@ -743,7 +693,7 @@ class EditDialog(BaseDialog):
         self.data_saved.emit()
         self.accept()
 
-# === 看板窗口 ===
+# === 看板窗口 === (省略未变动的代码)
 class StatsDialog(BaseDialog):
     def __init__(self, db, parent=None):
         super().__init__(parent)
@@ -819,7 +769,7 @@ class StatsDialog(BaseDialog):
         vl.addWidget(lbl_val)
         return f
 
-# === 提取窗口 ===
+# === 提取窗口 === (省略未变动的代码)
 class ExtractDialog(BaseDialog):
     def __init__(self, db, parent=None):
         super().__init__(parent)
@@ -840,13 +790,14 @@ class ExtractDialog(BaseDialog):
         self.txt.setText(text)
         
         layout.addSpacing(10)
-        btn = QPushButton('📋 复制全部到剪贴板')
+        btn = QPushButton('  复制全部到剪贴板')
+        btn.setIcon(create_svg_icon("action_export.svg", "white"))
         btn.setFixedHeight(45)
         btn.setStyleSheet(STYLES['btn_primary'])
         btn.clicked.connect(lambda: (QApplication.clipboard().setText(text), QMessageBox.information(self,'成功','✅ 内容已复制')))
         layout.addWidget(btn)
 
-# === 预览窗口 ===
+# === 预览窗口 === (省略未变动的代码)
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtWidgets import QDesktopWidget
 
@@ -866,6 +817,7 @@ class PreviewDialog(QDialog):
         main_layout.setContentsMargins(0, 0, 0, 0)
         
         container = QWidget()
+        # 样式由 config.py 提供 SCROLLBAR_STYLE
         container.setStyleSheet(f"""
             QWidget {{
                 background-color: {COLORS['bg_dark']};
@@ -895,7 +847,6 @@ class PreviewDialog(QDialog):
                 color: #ddd;
                 font-size: 14px;
             }}
-            {SCROLLBAR_STYLE}
         """)
         layout.addWidget(text_edit)
 

@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 # ui/cards.py
 import sys
-from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QApplication, QSizePolicy
+from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QApplication, QSizePolicy, QWidget
 from PyQt5.QtCore import Qt, pyqtSignal, QMimeData, QSize
-from PyQt5.QtGui import QDrag, QPixmap, QImage
+from PyQt5.QtGui import QDrag, QPixmap, QImage, QPainter
 from core.config import STYLES, COLORS
+from ui.utils import create_svg_icon
 
 class IdeaCard(QFrame):
     selection_requested = pyqtSignal(int, bool, bool)
@@ -43,12 +44,19 @@ class IdeaCard(QFrame):
         
         self.icon_layout = QHBoxLayout()
         self.icon_layout.setSpacing(4)
-        self.rating_label = QLabel()
-        self.lock_icon = QLabel('🔒\uFE0E')
-        self.pin_icon = QLabel('📌')
-        self.fav_icon = QLabel('🌟')
+        
+        # 【修改】初始化为不带文本的 QLabel，用于承载 SVG Pixmap
+        self.rating_label = QLabel() # 将显示星级 SVG 拼接图
+        self.lock_icon = QLabel()
+        self.pin_icon = QLabel()
+        self.fav_icon = QLabel()
+        
+        # 统一设置 Label 属性
         for icon in [self.rating_label, self.lock_icon, self.pin_icon, self.fav_icon]:
+            icon.setStyleSheet("background: transparent; border: none;")
+            icon.setAlignment(Qt.AlignCenter)
             self.icon_layout.addWidget(icon)
+            
         top_layout.addLayout(self.icon_layout)
         self.main_layout.addLayout(top_layout)
 
@@ -62,8 +70,17 @@ class IdeaCard(QFrame):
         # 3. Bottom Section
         bot_layout = QHBoxLayout()
         bot_layout.setSpacing(6)
+        
+        # 时间图标
+        self.time_icon = QLabel()
+        self.time_icon.setFixedSize(14, 14)
+        self.time_icon.setPixmap(create_svg_icon("calendar.svg", "rgba(255,255,255,100)").pixmap(14, 14))
+        self.time_icon.setStyleSheet("background: transparent;")
+        
         self.time_label = QLabel()
         self.time_label.setStyleSheet("color:rgba(255,255,255,100); font-size:11px; background:transparent;")
+        
+        bot_layout.addWidget(self.time_icon)
         bot_layout.addWidget(self.time_label)
         bot_layout.addStretch()
         self.tags_layout = QHBoxLayout()
@@ -80,20 +97,31 @@ class IdeaCard(QFrame):
         is_pinned = self.data[4]
         is_favorite = self.data[5]
 
+        # 【核心修改】Rating 星级渲染为 SVG Pixmap
         if rating > 0:
-            self.rating_label.setText(f"{'★'*rating}")
-            self.rating_label.setStyleSheet(f"background:transparent; font-size:12px; color: {COLORS['warning']};")
+            self.rating_label.setPixmap(self._generate_stars_pixmap(rating))
             self.rating_label.show()
         else:
             self.rating_label.hide()
             
-        self.lock_icon.setStyleSheet(f"background:transparent; font-size:12px; color: {COLORS['success']};")
-        self.lock_icon.setVisible(bool(is_locked))
-        self.pin_icon.setStyleSheet("background:transparent; font-size:12px;")
-        self.pin_icon.setVisible(bool(is_pinned))
-        self.fav_icon.setText("🔖")
-        self.fav_icon.setStyleSheet("background:transparent; font-size:12px;")
-        self.fav_icon.setVisible(bool(is_favorite))
+        # 【核心修改】图标渲染为 SVG
+        if is_locked:
+            self.lock_icon.setPixmap(create_svg_icon("lock.svg", COLORS['success']).pixmap(14, 14))
+            self.lock_icon.show()
+        else:
+            self.lock_icon.hide()
+
+        if is_pinned:
+            self.pin_icon.setPixmap(create_svg_icon("action_pin.svg", "#cccccc").pixmap(14, 14))
+            self.pin_icon.show()
+        else:
+            self.pin_icon.hide()
+
+        if is_favorite:
+            self.fav_icon.setPixmap(create_svg_icon("bookmark.svg", "#ff6b81").pixmap(14, 14))
+            self.fav_icon.show()
+        else:
+            self.fav_icon.hide()
 
         # 2. Refresh Middle
         while self.content_layout.count():
@@ -111,6 +139,7 @@ class IdeaCard(QFrame):
                 if pixmap.height() > max_h: pixmap = pixmap.scaledToHeight(max_h, Qt.SmoothTransformation)
                 if pixmap.width() > 400: pixmap = pixmap.scaledToWidth(400, Qt.SmoothTransformation)
                 img_label.setPixmap(pixmap)
+                img_label.setStyleSheet("background: transparent;")
                 self.content_layout.addWidget(img_label)
         elif self.data[2]:
             preview_text = self.data[2].strip()[:300].replace('\n', ' ')
@@ -123,7 +152,7 @@ class IdeaCard(QFrame):
             self.content_layout.addWidget(content)
 
         # 3. Refresh Bottom
-        self.time_label.setText(f'🕒 {self.data[7][:16]}')
+        self.time_label.setText(f'{self.data[7][:16]}')
         while self.tags_layout.count():
             item = self.tags_layout.takeAt(0)
             if item.widget(): item.widget().deleteLater()
@@ -140,6 +169,27 @@ class IdeaCard(QFrame):
             self.tags_layout.addWidget(tag_label)
 
         self.update_selection(False)
+
+    def _generate_stars_pixmap(self, rating):
+        """生成星星评分的 Pixmap 图像"""
+        star_size = 12
+        spacing = 2
+        total_width = (star_size * rating) + (spacing * (rating - 1))
+        
+        pixmap = QPixmap(total_width, star_size)
+        pixmap.fill(Qt.transparent)
+        
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        star_icon = create_svg_icon("star_filled.svg", COLORS['warning'])
+        
+        for i in range(rating):
+            x = i * (star_size + spacing)
+            star_icon.paint(painter, x, 0, star_size, star_size)
+            
+        painter.end()
+        return pixmap
 
     def update_selection(self, selected):
         bg_color = self.data[3]
@@ -174,7 +224,6 @@ class IdeaCard(QFrame):
             }}
         """
         
-        # 如果选中了，需要覆盖 hover 样式，保持选中状态的边框
         if selected:
             final_style += """
                 IdeaCard:hover {
@@ -197,13 +246,11 @@ class IdeaCard(QFrame):
         if (e.pos() - self._drag_start_pos).manhattanLength() < QApplication.startDragDistance():
             return
         
-        # 拖拽开始，取消点击判定
         self._is_potential_click = False
         
         drag = QDrag(self)
         mime = QMimeData()
         
-        # --- 批量拖拽支持 ---
         ids_to_move = [self.id]
         if self.get_selected_ids_func:
             selected_ids = self.get_selected_ids_func()

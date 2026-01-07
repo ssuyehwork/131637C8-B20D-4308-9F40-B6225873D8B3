@@ -124,6 +124,12 @@ class DatabaseManager:
         self._update_tags(iid, tags)
         self.conn.commit()
 
+    def update_field(self, iid, field, value):
+        c = self.conn.cursor()
+        # 注意：这里直接拼接字段名，确保调用时 field 是安全的内部字符串
+        c.execute(f'UPDATE ideas SET {field} = ? WHERE id = ?', (value, iid))
+        self.conn.commit()
+
     def _update_tags(self, iid, tags):
         c = self.conn.cursor()
         c.execute('DELETE FROM idea_tags WHERE idea_id=?', (iid,))
@@ -323,27 +329,67 @@ class DatabaseManager:
             ''', (iid,))
         return c.fetchone()
 
-    def get_ideas(self, search, f_type, f_val, page=None, page_size=20, tag_filter=None):
+    # === 新增：获取筛选器统计数据 ===
+    def get_filter_stats(self):
+        """
+        获取当前活跃数据（未删除）的各项统计，用于填充筛选器
+        """
+        c = self.conn.cursor()
+        stats = {
+            'stars': {},
+            'colors': {},
+            'types': {},
+            'tags': [],
+            'date_create': {}
+        }
+        
+        base_condition = "WHERE is_deleted = 0"
+
+        # 1. 星级统计
+        c.execute(f"SELECT rating, COUNT(*) FROM ideas {base_condition} GROUP BY rating")
+        stats['stars'] = dict(c.fetchall())
+
+        # 2. 颜色统计
+        c.execute(f"SELECT color, COUNT(*) FROM ideas {base_condition} GROUP BY color")
+        stats['colors'] = dict(c.fetchall())
+
+        # 3. 类型统计
+        c.execute(f"SELECT item_type, COUNT(*) FROM ideas {base_condition} GROUP BY item_type")
+        stats['types'] = dict(c.fetchall())
+
+        # 4. 标签统计 (关联查询)
+        c.execute(f"""
+            SELECT t.name, COUNT(it.idea_id) as cnt
+            FROM tags t
+            JOIN idea_tags it ON t.id = it.tag_id
+            JOIN ideas i ON it.idea_id = i.id
+            {base_condition}
+            GROUP BY t.id
+            ORDER BY cnt DESC
+        """)
+        stats['tags'] = c.fetchall() # List of (name, count)
+
+        # 5. 日期统计 (SQLite 日期函数)
+        # 今日
+        c.execute(f"SELECT COUNT(*) FROM ideas {base_condition} AND date(created_at, 'localtime') = date('now', 'localtime')")
+        stats['date_create']['today'] = c.fetchone()[0]
+        # 昨日
+        c.execute(f"SELECT COUNT(*) FROM ideas {base_condition} AND date(created_at, 'localtime') = date('now', '-1 day', 'localtime')")
+        stats['date_create']['yesterday'] = c.fetchone()[0]
+        # 本周 (近7天)
+        c.execute(f"SELECT COUNT(*) FROM ideas {base_condition} AND date(created_at, 'localtime') >= date('now', '-6 days', 'localtime')")
+        stats['date_create']['week'] = c.fetchone()[0]
+        # 本月 (当月)
+        c.execute(f"SELECT COUNT(*) FROM ideas {base_condition} AND strftime('%Y-%m', created_at, 'localtime') = strftime('%Y-%m', 'now', 'localtime')")
+        stats['date_create']['month'] = c.fetchone()[0]
+
+        return stats
+
+    # === 修改：get_ideas 支持高级筛选 ===
+    def get_ideas(self, search, f_type, f_val, page=None, page_size=20, tag_filter=None, filter_criteria=None):
         c = self.conn.cursor()
         
-        # 【关键修改】显式列出所有字段，确保字段顺序绝对固定
-        # 索引对照：
-        # 0: id
-        # 1: title
-        # 2: content
-        # 3: color
-        # 4: is_pinned
-        # 5: is_favorite
-        # 6: created_at
-        # 7: updated_at
-        # 8: category_id
-        # 9: is_deleted
-        # 10: item_type
-        # 11: data_blob
-        # 12: content_hash
-        # 13: is_locked
-        # 14: rating
-        
+        # 基础字段
         q = """
             SELECT DISTINCT 
                 i.id, i.title, i.content, i.color, i.is_pinned, i.is_favorite, 
@@ -356,6 +402,7 @@ class DatabaseManager:
         """
         p = []
         
+        # 1. 基础侧边栏过滤 (Trash/Category/etc)
         if f_type == 'trash': q += ' AND i.is_deleted=1'
         else: q += ' AND (i.is_deleted=0 OR i.is_deleted IS NULL)'
         
@@ -366,14 +413,63 @@ class DatabaseManager:
         elif f_type == 'untagged': q += ' AND i.id NOT IN (SELECT idea_id FROM idea_tags)'
         elif f_type == 'bookmark': q += ' AND i.is_favorite=1'
         
-        if tag_filter:
-            q += " AND i.id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = ?))"
-            p.append(tag_filter)
-        
+        # 2. 搜索框
         if search:
             q += ' AND (i.title LIKE ? OR i.content LIKE ? OR t.name LIKE ?)'
             p.extend([f'%{search}%']*3)
+
+        # 3. 单标签过滤 (兼容旧逻辑)
+        if tag_filter:
+            q += " AND i.id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = ?))"
+            p.append(tag_filter)
+
+        # 4. === 高级筛选器逻辑 (FilterPanel) ===
+        if filter_criteria:
+            # 4.1 星级筛选 (多选 OR)
+            if 'stars' in filter_criteria:
+                stars = filter_criteria['stars']
+                placeholders = ','.join('?' * len(stars))
+                q += f" AND i.rating IN ({placeholders})"
+                p.extend(stars)
             
+            # 4.2 颜色筛选 (多选 OR)
+            if 'colors' in filter_criteria:
+                colors = filter_criteria['colors']
+                placeholders = ','.join('?' * len(colors))
+                q += f" AND i.color IN ({placeholders})"
+                p.extend(colors)
+
+            # 4.3 类型筛选 (多选 OR)
+            if 'types' in filter_criteria:
+                types = filter_criteria['types']
+                placeholders = ','.join('?' * len(types))
+                q += f" AND i.item_type IN ({placeholders})"
+                p.extend(types)
+
+            # 4.4 标签云筛选 (多选 OR - 包含任意一个选中的标签)
+            if 'tags' in filter_criteria:
+                tags = filter_criteria['tags']
+                tag_placeholders = ','.join('?' * len(tags))
+                q += f" AND i.id IN (SELECT idea_id FROM idea_tags JOIN tags ON idea_tags.tag_id = tags.id WHERE tags.name IN ({tag_placeholders}))"
+                p.extend(tags)
+
+            # 4.5 日期筛选 (多选 OR - 满足任意一个时间段)
+            if 'date_create' in filter_criteria:
+                date_conditions = []
+                for d_opt in filter_criteria['date_create']:
+                    if d_opt == 'today':
+                        date_conditions.append("date(i.created_at,'localtime')=date('now','localtime')")
+                    elif d_opt == 'yesterday':
+                        date_conditions.append("date(i.created_at,'localtime')=date('now','-1 day','localtime')")
+                    elif d_opt == 'week':
+                        date_conditions.append("date(i.created_at,'localtime')>=date('now','-6 days','localtime')")
+                    elif d_opt == 'month':
+                        date_conditions.append("strftime('%Y-%m',i.created_at,'localtime')=strftime('%Y-%m','now','localtime')")
+                
+                if date_conditions:
+                    q += " AND (" + " OR ".join(date_conditions) + ")"
+
+        # 排序与分页
         if f_type == 'trash':
             q += ' ORDER BY i.updated_at DESC'
         else:
@@ -388,7 +484,8 @@ class DatabaseManager:
         c.execute(q, p)
         return c.fetchall()
 
-    def get_ideas_count(self, search, f_type, f_val, tag_filter=None):
+    # === 修改：get_ideas_count 同样支持 filter_criteria ===
+    def get_ideas_count(self, search, f_type, f_val, tag_filter=None, filter_criteria=None):
         c = self.conn.cursor()
         q = "SELECT COUNT(DISTINCT i.id) FROM ideas i LEFT JOIN idea_tags it ON i.id=it.idea_id LEFT JOIN tags t ON it.tag_id=t.id WHERE 1=1"
         p = []
@@ -403,13 +500,45 @@ class DatabaseManager:
         elif f_type == 'untagged': q += ' AND i.id NOT IN (SELECT idea_id FROM idea_tags)'
         elif f_type == 'bookmark': q += ' AND i.is_favorite=1'
         
-        if tag_filter:
-            q += " AND i.id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = ?))"
-            p.append(tag_filter)
-            
         if search:
             q += ' AND (i.title LIKE ? OR i.content LIKE ? OR t.name LIKE ?)'
             p.extend([f'%{search}%']*3)
+
+        if tag_filter:
+            q += " AND i.id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = ?))"
+            p.append(tag_filter)
+
+        # Advanced Filters
+        if filter_criteria:
+            if 'stars' in filter_criteria:
+                stars = filter_criteria['stars']
+                placeholders = ','.join('?' * len(stars))
+                q += f" AND i.rating IN ({placeholders})"
+                p.extend(stars)
+            if 'colors' in filter_criteria:
+                colors = filter_criteria['colors']
+                placeholders = ','.join('?' * len(colors))
+                q += f" AND i.color IN ({placeholders})"
+                p.extend(colors)
+            if 'types' in filter_criteria:
+                types = filter_criteria['types']
+                placeholders = ','.join('?' * len(types))
+                q += f" AND i.item_type IN ({placeholders})"
+                p.extend(types)
+            if 'tags' in filter_criteria:
+                tags = filter_criteria['tags']
+                tag_placeholders = ','.join('?' * len(tags))
+                q += f" AND i.id IN (SELECT idea_id FROM idea_tags JOIN tags ON idea_tags.tag_id = tags.id WHERE tags.name IN ({tag_placeholders}))"
+                p.extend(tags)
+            if 'date_create' in filter_criteria:
+                date_conditions = []
+                for d_opt in filter_criteria['date_create']:
+                    if d_opt == 'today': date_conditions.append("date(i.created_at,'localtime')=date('now','localtime')")
+                    elif d_opt == 'yesterday': date_conditions.append("date(i.created_at,'localtime')=date('now','-1 day','localtime')")
+                    elif d_opt == 'week': date_conditions.append("date(i.created_at,'localtime')>=date('now','-6 days','localtime')")
+                    elif d_opt == 'month': date_conditions.append("strftime('%Y-%m',i.created_at,'localtime')=strftime('%Y-%m','now','localtime')")
+                if date_conditions:
+                    q += " AND (" + " OR ".join(date_conditions) + ")"
             
         c.execute(q, p)
         return c.fetchone()[0]

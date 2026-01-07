@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# core/shared.py
 from PyQt5.QtGui import QColor, QIcon, QPainter, QPixmap
 from PyQt5.QtCore import Qt
 
@@ -9,6 +10,9 @@ def get_color_icon(color_str):
     根据颜色字符串生成一个QIcon。
     为了提高性能，相同颜色的图标会被缓存。
     """
+    if not color_str:
+        color_str = "#808080"
+        
     if color_str in _ICON_CACHE:
         return _ICON_CACHE[color_str]
 
@@ -17,7 +21,7 @@ def get_color_icon(color_str):
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.Antialiasing)
     
-    color = QColor(color_str or "#808080")
+    color = QColor(color_str)
     painter.setBrush(color)
     painter.setPen(Qt.NoPen)
     

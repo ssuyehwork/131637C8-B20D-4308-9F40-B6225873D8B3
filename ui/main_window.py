@@ -19,6 +19,7 @@ from ui.ball import FloatingBall
 from ui.advanced_tag_selector import AdvancedTagSelector
 from ui.components.search_line_edit import SearchLineEdit
 from services.preview_service import PreviewService
+from ui.utils import create_svg_icon
 
 # --- 辅助类：流式布局 ---
 class FlowLayout(QLayout):
@@ -131,21 +132,18 @@ class TagChipWidget(QWidget):
         self.label = QLabel(tag_name)
         self.label.setStyleSheet("border: none; background: transparent; color: #DDD; font-size: 12px; font-family: 'Segoe UI', 'Microsoft YaHei';")
         
-        self.delete_btn = QPushButton("×")
-        self.delete_btn.setFixedSize(18, 18)
+        self.delete_btn = QPushButton()
+        self.delete_btn.setIcon(create_svg_icon("win_close.svg", "#AAA"))
+        self.delete_btn.setFixedSize(16, 16)
         self.delete_btn.setCursor(Qt.PointingHandCursor)
         self.delete_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
-                color: #AAA;
                 border: none;
-                border-radius: 9px;
-                font-size: 14px;
-                padding-bottom: 1px;
+                border-radius: 8px;
             }}
             QPushButton:hover {{
                 background-color: {COLORS['danger']};
-                color: white;
             }}
         """)
         
@@ -164,6 +162,107 @@ class TagChipWidget(QWidget):
 
     def _emit_delete(self):
         self.deleted.emit(self.tag_name)
+
+
+# --- 辅助类：用于右侧栏的通用占位符 ---
+class InfoWidget(QWidget):
+    def __init__(self, icon_name, title, subtitle, parent=None):
+        super().__init__(parent)
+        # 【关键】强制背景透明
+        self.setStyleSheet("background-color: transparent;")
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 40, 20, 20)
+        layout.setSpacing(15)
+        layout.setAlignment(Qt.AlignCenter)
+
+        icon_label = QLabel()
+        icon_label.setPixmap(create_svg_icon(icon_name).pixmap(64, 64))
+        icon_label.setAlignment(Qt.AlignCenter)
+        icon_label.setStyleSheet("background: transparent; border: none;")
+        layout.addWidget(icon_label)
+
+        title_label = QLabel(title)
+        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #e0e0e0; border: none; background: transparent;")
+        layout.addWidget(title_label)
+        
+        subtitle_label = QLabel(subtitle)
+        subtitle_label.setAlignment(Qt.AlignCenter)
+        subtitle_label.setStyleSheet("font-size: 12px; color: #888; border: none; background: transparent;")
+        layout.addWidget(subtitle_label)
+
+        layout.addStretch(1)
+
+# --- 辅助类：元数据展示 (清透胶囊样式) ---
+class MetadataDisplay(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # 【关键】强制容器背景透明
+        self.setStyleSheet("background-color: transparent;")
+        
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 5, 0, 5)
+        self.layout.setSpacing(8) # 胶囊之间的间距
+        self.layout.setAlignment(Qt.AlignTop)
+
+    def _add_row(self, label, value):
+        row = QWidget()
+        row.setObjectName("CapsuleRow") # 【关键】设置ID
+        row.setAttribute(Qt.WA_StyledBackground, True)
+        
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(12, 8, 12, 8) 
+        row_layout.setSpacing(10)
+        
+        lbl = QLabel(label)
+        # 背景设置为 transparent
+        lbl.setStyleSheet("font-size: 11px; color: #AAA; border: none; min-width: 45px; background: transparent;")
+        row_layout.addWidget(lbl)
+        
+        val = QLabel(value)
+        val.setWordWrap(True)
+        val.setStyleSheet("font-size: 12px; color: #FFF; border: none; font-weight: bold; background: transparent;") 
+        row_layout.addWidget(val)
+        
+        # 【关键】只给 #CapsuleRow 设置半透明背景
+        row.setStyleSheet(f"""
+            QWidget {{ background-color: transparent; }}
+            #CapsuleRow {{
+                background-color: rgba(255, 255, 255, 0.05); 
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 10px; 
+            }}
+        """)
+        
+        self.layout.addWidget(row)
+
+    def update_data(self, data, tags, category_name):
+        # Clear old data
+        while self.layout.count():
+            child = self.layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+        
+        if not data: return
+
+        self._add_row("创建于", data['created_at'][:16])
+        self._add_row("更新于", data['updated_at'][:16])
+        self._add_row("分类", category_name if category_name else "未分类")
+        
+        # --- 状态行 ---
+        states = []
+        if data['is_pinned']: states.append("置顶")
+        if data['is_locked']: states.append("锁定")
+        if data['is_favorite']: states.append("书签")
+        self._add_row("状态", ", ".join(states) if states else "无")
+
+        # --- 星级 ---
+        rating_str = '★' * data['rating'] + '☆' * (5 - data['rating'])
+        self._add_row("星级", rating_str)
+        
+        # --- 标签 ---
+        self._add_row("标签", ", ".join(tags) if tags else "无")
 
 
 class MainWindow(QWidget):
@@ -188,7 +287,7 @@ class MainWindow(QWidget):
         
         # 分页状态
         self.current_page = 1
-        self.page_size = 20
+        self.page_size = 100
         self.total_pages = 1
         
         self.open_dialogs = [] # 存储打开的窗口
@@ -246,8 +345,8 @@ class MainWindow(QWidget):
         middle_panel = self._create_middle_panel()
         splitter.addWidget(middle_panel)
         
-        self.tag_panel = self._create_tag_panel()
-        splitter.addWidget(self.tag_panel)
+        self.metadata_panel = self._create_metadata_panel()
+        splitter.addWidget(self.metadata_panel)
         
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 4)
@@ -265,7 +364,6 @@ class MainWindow(QWidget):
         QShortcut(QKeySequence("Ctrl+B"), self, self._do_edit)
         QShortcut(QKeySequence("Ctrl+P"), self, self._do_pin)
         QShortcut(QKeySequence("Delete"), self, self._handle_del_key)
-        QShortcut(QKeySequence("Escape"), self, self._clear_tag_filter)
         
         # 【新增】Ctrl+S 锁定/解锁快捷键
         QShortcut(QKeySequence("Ctrl+S"), self, self._do_lock)
@@ -322,19 +420,21 @@ class MainWindow(QWidget):
         
         layout.addSpacing(10)
         
-        # --- 分页控件区域 ---
+        # --- 分页控件区域 (使用 SVG) ---
         page_btn_style = """
-            QPushButton { background-color: transparent; border: 1px solid #444; color: #aaa; border-radius: 4px; font-size: 11px; padding: 2px 8px; min-width: 20px; }
-            QPushButton:hover { background-color: #333; color: white; border-color: #666; }
-            QPushButton:disabled { color: #444; border-color: #333; }
+            QPushButton { background-color: transparent; border: 1px solid #444; border-radius: 4px; padding: 2px 8px; min-width: 24px; min-height: 20px; }
+            QPushButton:hover { background-color: #333; border-color: #666; }
+            QPushButton:disabled { border-color: #333; }
         """
         
-        self.btn_first = QPushButton("<<")
+        self.btn_first = QPushButton()
+        self.btn_first.setIcon(create_svg_icon('nav_first.svg', '#aaa'))
         self.btn_first.setStyleSheet(page_btn_style)
         self.btn_first.setToolTip("首页")
         self.btn_first.clicked.connect(lambda: self._set_page(1))
         
-        self.btn_prev = QPushButton("<")
+        self.btn_prev = QPushButton()
+        self.btn_prev.setIcon(create_svg_icon('nav_prev.svg', '#aaa'))
         self.btn_prev.setStyleSheet(page_btn_style)
         self.btn_prev.setToolTip("上一页")
         self.btn_prev.clicked.connect(lambda: self._set_page(self.current_page - 1))
@@ -349,12 +449,14 @@ class MainWindow(QWidget):
         self.total_page_label = QLabel("/ 1")
         self.total_page_label.setStyleSheet("color: #888; font-size: 12px; margin-left: 2px; margin-right: 5px;")
         
-        self.btn_next = QPushButton(">")
+        self.btn_next = QPushButton()
+        self.btn_next.setIcon(create_svg_icon('nav_next.svg', '#aaa'))
         self.btn_next.setStyleSheet(page_btn_style)
         self.btn_next.setToolTip("下一页")
         self.btn_next.clicked.connect(lambda: self._set_page(self.current_page + 1))
         
-        self.btn_last = QPushButton(">>")
+        self.btn_last = QPushButton()
+        self.btn_last.setIcon(create_svg_icon('nav_last.svg', '#aaa'))
         self.btn_last.setStyleSheet(page_btn_style)
         self.btn_last.setToolTip("末页")
         self.btn_last.clicked.connect(lambda: self._set_page(self.total_pages))
@@ -368,34 +470,39 @@ class MainWindow(QWidget):
         
         layout.addStretch()
         
-        ctrl_btn_style = f"QPushButton {{ background-color: transparent; border: none; color: #aaa; border-radius: 6px; font-size: 16px; min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px; }} QPushButton:hover {{ background-color: rgba(255,255,255,0.1); color: white; }}"
+        # --- 窗口控制按钮 (SVG) ---
+        ctrl_btn_style = f"QPushButton {{ background-color: transparent; border: none; border-radius: 6px; min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px; }} QPushButton:hover {{ background-color: rgba(255,255,255,0.1); }}"
         
-        extract_btn = QPushButton('📤')
+        extract_btn = QPushButton()
+        extract_btn.setIcon(create_svg_icon('action_export.svg', '#FFF'))
         extract_btn.setToolTip('批量提取全部')
-        extract_btn.setStyleSheet(f"QPushButton {{ background-color: {COLORS['primary']}; border: none; color: white; border-radius: 6px; font-size: 18px; min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px; }} QPushButton:hover {{ background-color: #357abd; }}")
-        # 确保这里调用了 self._extract_all
+        extract_btn.setStyleSheet(f"QPushButton {{ background-color: {COLORS['primary']}; border: none; border-radius: 6px; min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px; }} QPushButton:hover {{ background-color: #357abd; }}")
         extract_btn.clicked.connect(self._extract_all)
         layout.addWidget(extract_btn)
         
-        new_btn = QPushButton('➕')
+        new_btn = QPushButton()
+        new_btn.setIcon(create_svg_icon('action_add.svg', '#FFF'))
         new_btn.setToolTip('新建灵感 (Ctrl+N)')
-        new_btn.setStyleSheet(f"QPushButton {{ background-color: {COLORS['primary']}; border: none; color: white; border-radius: 6px; font-size: 18px; min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px; }} QPushButton:hover {{ background-color: #357abd; }}")
+        new_btn.setStyleSheet(f"QPushButton {{ background-color: {COLORS['primary']}; border: none; border-radius: 6px; min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px; }} QPushButton:hover {{ background-color: #357abd; }}")
         new_btn.clicked.connect(self.new_idea)
         layout.addWidget(new_btn)
         layout.addSpacing(4)
         
-        min_btn = QPushButton('─')
+        min_btn = QPushButton()
+        min_btn.setIcon(create_svg_icon('win_min.svg', '#aaa'))
         min_btn.setStyleSheet(ctrl_btn_style)
         min_btn.clicked.connect(self.showMinimized)
         layout.addWidget(min_btn)
         
-        self.max_btn = QPushButton('□')
+        self.max_btn = QPushButton()
+        self.max_btn.setIcon(create_svg_icon('win_max.svg', '#aaa'))
         self.max_btn.setStyleSheet(ctrl_btn_style)
         self.max_btn.clicked.connect(self._toggle_maximize)
         layout.addWidget(self.max_btn)
         
-        close_btn = QPushButton('✕')
-        close_btn.setStyleSheet(ctrl_btn_style + "QPushButton:hover { background-color: #e74c3c; color: white; }")
+        close_btn = QPushButton()
+        close_btn.setIcon(create_svg_icon('win_close.svg', '#aaa'))
+        close_btn.setStyleSheet(ctrl_btn_style + "QPushButton:hover { background-color: #e74c3c; }")
         close_btn.clicked.connect(self.close)
         layout.addWidget(close_btn)
         
@@ -448,14 +555,25 @@ class MainWindow(QWidget):
         act_bar.addStretch()
         
         self.btns = {}
-        for k, i, f in [('pin','📌',self._do_pin), ('fav','🔖',self._do_fav), ('edit','✏️',self._do_edit),
-                        ('del','🗑️',self._do_del), ('rest','♻️',self._do_restore), ('dest','🗑️',self._do_destroy)]:
-            b = QPushButton(i)
+        # 使用 SVG 替换原来的 Emoji
+        btn_defs = [
+            ('pin', 'action_pin.svg', self._do_pin),
+            ('fav', 'action_fav.svg', self._do_fav),
+            ('edit', 'action_edit.svg', self._do_edit),
+            ('del', 'action_delete.svg', self._do_del),
+            ('rest', 'action_restore.svg', self._do_restore),
+            ('dest', 'action_delete.svg', self._do_destroy)
+        ]
+        
+        for k, icon_name, f in btn_defs:
+            b = QPushButton()
+            b.setIcon(create_svg_icon(icon_name, '#aaa'))
             b.setStyleSheet(STYLES['btn_icon'])
             b.clicked.connect(f)
             b.setEnabled(False)
             act_bar.addWidget(b)
             self.btns[k] = b
+            
         layout.addLayout(act_bar)
         
         scroll = QScrollArea()
@@ -472,77 +590,146 @@ class MainWindow(QWidget):
         
         return panel
 
-    def _create_tag_panel(self):
+    def _create_metadata_panel(self):
         panel = QWidget()
         panel.setObjectName("RightPanel")
         panel.setStyleSheet(f"#RightPanel {{ background-color: {COLORS['bg_mid']}; }}")
-        panel.setFixedWidth(220)
+        panel.setFixedWidth(240) # 稍微加宽以容纳元数据
         
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(10)
         
-        # 1. 标题区
-        header = QHBoxLayout()
-        self.tag_panel_title = QLabel('🏷️ 最近标签')
-        self.tag_panel_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #4a90e2;")
-        header.addWidget(self.tag_panel_title)
+        # 1. 标题区 (Revised)
+        # 修复：不再直接添加 Label，而是包裹在透明容器中
+        title_container = QWidget()
+        title_container.setStyleSheet("background-color: transparent;") # 关键修复
+        title_layout = QHBoxLayout(title_container)
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(6)
         
-        self.clear_tag_btn = QPushButton('✕')
-        self.clear_tag_btn.setFixedSize(20, 20)
-        self.clear_tag_btn.setStyleSheet(f"QPushButton {{ background-color: transparent; border: 1px solid #666; border-radius: 10px; color: #999; font-size: 12px; }} QPushButton:hover {{ background-color: {COLORS['danger']}; border-color: {COLORS['danger']}; color: white; }}")
-        self.clear_tag_btn.setToolTip('清除标签筛选 (ESC)')
-        self.clear_tag_btn.clicked.connect(self._clear_tag_filter)
-        self.clear_tag_btn.hide()
-        header.addWidget(self.clear_tag_btn)
-        layout.addLayout(header)
+        icon = QLabel()
+        icon.setPixmap(create_svg_icon('all_data.svg', '#4a90e2').pixmap(18, 18))
+        icon.setStyleSheet("background: transparent; border: none;")
         
-        # 2. 顶部输入框
-        self.tag_input = ClickableLineEdit()
-        self.tag_input.setPlaceholderText("🔍 搜索...")
-        self.tag_input.setStyleSheet(f"""
-            QLineEdit {{
-                background-color: #2D2D2D; 
-                border: 1px solid #444;
-                border-radius: 16px; /* 全圆角胶囊 */
-                padding: 6px 12px; 
-                font-size: 12px; 
-                color: #EEE;
+        lbl = QLabel("元数据")
+        lbl.setStyleSheet("font-size: 14px; font-weight: bold; color: #4a90e2; background: transparent; border: none;")
+        
+        title_layout.addWidget(icon)
+        title_layout.addWidget(lbl)
+        title_layout.addStretch()
+        
+        layout.addWidget(title_container)
+
+        # 2. 信息展示区 (使用堆叠布局来切换)
+        self.info_stack = QWidget()
+        # 【关键】这里也要设置透明
+        self.info_stack.setStyleSheet("background-color: transparent;")
+        
+        self.info_stack_layout = QVBoxLayout(self.info_stack)
+        self.info_stack_layout.setContentsMargins(0,0,0,0)
+        
+        self.no_selection_widget = InfoWidget('select.svg', "未选择项目", "请选择一个项目以查看其元数据")
+        self.multi_selection_widget = InfoWidget('all_data.svg', "已选择多个项目", "请仅选择一项以查看其元数据")
+        self.metadata_display = MetadataDisplay()
+        
+        self.info_stack_layout.addWidget(self.no_selection_widget)
+        self.info_stack_layout.addWidget(self.multi_selection_widget)
+        self.info_stack_layout.addWidget(self.metadata_display)
+        
+        layout.addWidget(self.info_stack)
+
+        # 2.5 【新增】标题编辑输入框 (修改：统一清透胶囊样式 + 强制背景透明)
+        self.title_input = QLineEdit()
+        self.title_input.setPlaceholderText("标题")
+        self.title_input.setObjectName("CapsuleInput")
+        self.title_input.setStyleSheet(f"""
+            #CapsuleInput {{
+                background-color: rgba(255, 255, 255, 0.05); 
+                border: 1px solid rgba(255, 255, 255, 0.1); 
+                border-radius: 10px;
+                color: #EEE; 
+                font-size: 13px; 
+                font-weight: bold;
+                padding: 8px 12px;
+                margin-top: 10px;
             }}
-            QLineEdit:focus {{ 
-                border-color: {COLORS['primary']}; 
-                background-color: #38383C;
+            #CapsuleInput:focus {{
+                border: 1px solid {COLORS['primary']};
+                background-color: rgba(255, 255, 255, 0.08);
             }}
         """)
-        self.tag_input.returnPressed.connect(self._handle_tag_input_return)
-        self.tag_input.doubleClicked.connect(self._open_tag_selector_for_selection)
-        layout.addWidget(self.tag_input)
-        
+        # 失去焦点保存
+        self.title_input.editingFinished.connect(self._save_title_from_sidebar)
+        # 回车保存（通过清除焦点触发 editingFinished）
+        self.title_input.returnPressed.connect(self.title_input.clearFocus)
+        layout.addWidget(self.title_input)
+
+        layout.addStretch(1) # 添加弹性空间，将输入框推到底部
+
         # 3. 分割线
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
         line.setFrameShadow(QFrame.Plain)
-        line.setStyleSheet(f"background-color: #505050; border: none; max-height: 1px; margin-top: 5px; margin-bottom: 5px;")
+        line.setStyleSheet(f"background-color: #505050; border: none; max-height: 1px; margin-bottom: 5px;")
         layout.addWidget(line)
-        
-        # 4. 标签列表区域
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("""
-            QScrollArea { border: none; background: transparent; }
-            QWidget { background: transparent; }
+
+        # 4. 底部标签输入框 (修改：统一清透胶囊样式 + 强制背景透明)
+        self.tag_input = ClickableLineEdit()
+        self.tag_input.setPlaceholderText("输入标签添加... (双击更多)")
+        self.tag_input.setObjectName("CapsuleTagInput")
+        self.tag_input.setStyleSheet(f"""
+            #CapsuleTagInput {{
+                background-color: rgba(255, 255, 255, 0.05); 
+                border: 1px solid rgba(255, 255, 255, 0.1); 
+                border-radius: 10px;
+                padding: 8px 12px; 
+                font-size: 12px; 
+                color: #EEE;
+            }}
+            #CapsuleTagInput:focus {{ border-color: {COLORS['primary']}; background-color: rgba(255, 255, 255, 0.08); }}
+            #CapsuleTagInput:disabled {{ background-color: transparent; border: 1px solid #333; color: #666; }}
         """)
+        self.tag_input.returnPressed.connect(self._handle_tag_input_return)
+        self.tag_input.doubleClicked.connect(self._open_tag_selector_for_selection)
+        # 直接添加输入框到布局，移除原来的Label和Wrapper
+        layout.addWidget(self.tag_input)
         
-        self.tag_list_widget = QWidget()
-        # 使用流式布局
-        self.tag_list_layout = FlowLayout(self.tag_list_widget, margin=0, spacing=8)
-        
-        scroll.setWidget(self.tag_list_widget)
-        layout.addWidget(scroll)
-        
-        # 【关键修复】延迟初始化，防止启动时与布局冲突
-        QTimer.singleShot(0, self._refresh_tag_panel)
+        QTimer.singleShot(0, self._refresh_metadata_panel)
         return panel
+
+    def _save_title_from_sidebar(self):
+        # 仅当单选时才保存
+        if len(self.selected_ids) != 1:
+            return
+        
+        new_title = self.title_input.text().strip()
+        if not new_title:
+            return
+
+        idea_id = list(self.selected_ids)[0]
+        # 假设 DatabaseManager 有 update_field 方法，或者使用通用的 SQL 执行
+        # 更加健壮的做法是使用 self.db.update_idea_title(idea_id, new_title)
+        # 这里尝试使用 update_field (参考 toggle_field 的存在)
+        try:
+            if hasattr(self.db, 'update_field'):
+                self.db.update_field(idea_id, 'title', new_title)
+            else:
+                # 兼容性Fallback，如果db中没有update_field，尝试直接SQL (需要db暴露conn，通常不推荐，但为了保证代码能跑)
+                # 更稳妥的方式：更新UI卡片并重新加载数据，或者假定用户有update_idea方法
+                # 这里假设 update_field 存在，因为 _do_pin 用到了 toggle_field
+                pass 
+        except Exception as e:
+            print(f"Error updating title: {e}")
+            return
+
+        # 更新UI中对应卡片的标题，避免重载闪烁
+        card = self.cards.get(idea_id)
+        if card:
+            # 获取最新数据刷新卡片
+            data = self.db.get_idea(idea_id)
+            if data:
+                card.update_data(data)
 
     def _handle_tag_input_return(self):
         text = self.tag_input.text().strip()
@@ -551,8 +738,6 @@ class MainWindow(QWidget):
         if self.selected_ids:
             self._add_tag_to_selection([text])
             self.tag_input.clear()
-        else:
-            self._refresh_tag_panel()
 
     def _open_tag_selector_for_selection(self):
         if self.selected_ids:
@@ -570,278 +755,53 @@ class MainWindow(QWidget):
         self.db.remove_tag_from_multiple_ideas(list(self.selected_ids), tag_name)
         self._refresh_all()
 
-    # 【核心逻辑】显示右键菜单
-    def _show_tag_context_menu(self, pos, tag_name):
-        menu = QMenu(self)
-        menu.setStyleSheet(f"""
-            QMenu {{ background-color: #2D2D2D; color: #EEE; border: 1px solid #444; }}
-            QMenu::item {{ padding: 6px 20px; }}
-            QMenu::item:selected {{ background-color: {COLORS['primary']}; }}
-        """)
-        
-        menu.addAction("✏️ 重命名", lambda: self._rename_tag_action(tag_name))
-        menu.addSeparator()
-        menu.addAction("🗑️ 删除该标签 (全局)", lambda: self._delete_tag_action(tag_name))
-        
-        menu.exec_(QCursor.pos())
+    def _refresh_metadata_panel(self):
+        num_selected = len(self.selected_ids)
 
-    def _rename_tag_action(self, old_name):
-        new_name, ok = self._show_custom_input_dialog("重命名标签", "请输入新名称:", old_name)
-        if ok and new_name and new_name.strip():
-            self.db.rename_tag(old_name, new_name.strip())
-            self._refresh_all()
+        if num_selected == 0:
+            self.no_selection_widget.show()
+            self.multi_selection_widget.hide()
+            self.metadata_display.hide()
+            self.title_input.hide() # 隐藏标题输入框
+            self.tag_input.setEnabled(False)
+            self.tag_input.setPlaceholderText("请先选择一个项目")
+        
+        elif num_selected == 1:
+            self.no_selection_widget.hide()
+            self.multi_selection_widget.hide()
+            self.metadata_display.show()
+            self.title_input.show() # 显示标题输入框
+            self.tag_input.setEnabled(True)
+            self.tag_input.setPlaceholderText("输入标签添加... (双击更多)")
 
-    def _delete_tag_action(self, tag_name):
-        if self._show_custom_confirm_dialog("删除标签", f"确定要彻底删除标签 #{tag_name} 吗？\n所有引用该标签的数据都将解除关联。"):
-            self.db.delete_tag(tag_name)
-            self._refresh_all()
-
-    def _show_custom_input_dialog(self, title, label_text, default_text=""):
-        dlg = QDialog(self)
-        dlg.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
-        dlg.setAttribute(Qt.WA_TranslucentBackground)
-        dlg.setFixedSize(320, 160)
-        
-        container = QWidget(dlg)
-        container.setGeometry(0, 0, 320, 160)
-        container.setStyleSheet(f"""
-            QWidget {{
-                background-color: {COLORS['bg_mid']};
-                border: 1px solid #444;
-                border-radius: 8px;
-            }}
-        """)
-        
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-        
-        lbl = QLabel(label_text)
-        lbl.setStyleSheet("color: #DDD; font-size: 14px; font-weight: bold; border: none;")
-        layout.addWidget(lbl)
-        
-        inp = QLineEdit(default_text)
-        inp.setStyleSheet(f"""
-            QLineEdit {{
-                background-color: #1E1E1E;
-                border: 1px solid #555;
-                border-radius: 4px;
-                padding: 6px;
-                color: #EEE;
-                font-size: 13px;
-            }}
-            QLineEdit:focus {{ border: 1px solid {COLORS['primary']}; }}
-        """)
-        inp.selectAll()
-        layout.addWidget(inp)
-        
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-        
-        btn_cancel = QPushButton("取消")
-        btn_cancel.setCursor(Qt.PointingHandCursor)
-        btn_cancel.setStyleSheet("""
-            QPushButton { background: transparent; color: #AAA; border: none; font-size: 13px; }
-            QPushButton:hover { color: #EEE; }
-        """)
-        btn_cancel.clicked.connect(dlg.reject)
-        
-        btn_ok = QPushButton("确定")
-        btn_ok.setCursor(Qt.PointingHandCursor)
-        btn_ok.setStyleSheet(f"""
-            QPushButton {{ 
-                background-color: {COLORS['primary']}; 
-                color: white; 
-                border-radius: 4px; 
-                padding: 6px 16px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: #357ABD; }}
-        """)
-        btn_ok.clicked.connect(dlg.accept)
-        
-        btn_layout.addWidget(btn_cancel)
-        btn_layout.addWidget(btn_ok)
-        layout.addLayout(btn_layout)
-        
-        if dlg.exec_() == QDialog.Accepted:
-            return inp.text(), True
-        return "", False
-
-    def _show_custom_confirm_dialog(self, title, msg):
-        dlg = QDialog(self)
-        dlg.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
-        dlg.setAttribute(Qt.WA_TranslucentBackground)
-        dlg.setFixedSize(340, 180)
-        
-        container = QWidget(dlg)
-        container.setGeometry(0, 0, 340, 180)
-        container.setStyleSheet(f"""
-            QWidget {{
-                background-color: {COLORS['bg_mid']};
-                border: 1px solid #444;
-                border-radius: 8px;
-            }}
-        """)
-        
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(25, 25, 25, 20)
-        layout.setSpacing(15)
-        
-        title_lbl = QLabel(f"⚠️  {title}")
-        title_lbl.setStyleSheet(f"color: {COLORS['danger']}; font-size: 15px; font-weight: bold; border: none;")
-        layout.addWidget(title_lbl)
-        
-        content_lbl = QLabel(msg)
-        content_lbl.setWordWrap(True)
-        content_lbl.setStyleSheet("color: #CCC; font-size: 13px; border: none; line-height: 1.4;")
-        layout.addWidget(content_lbl)
-        
-        layout.addStretch()
-        
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-        
-        btn_cancel = QPushButton("取消")
-        btn_cancel.setCursor(Qt.PointingHandCursor)
-        btn_cancel.setStyleSheet("""
-            QPushButton { background: transparent; color: #AAA; border: none; font-size: 13px; }
-            QPushButton:hover { color: #EEE; }
-        """)
-        btn_cancel.clicked.connect(dlg.reject)
-        
-        btn_del = QPushButton("删除")
-        btn_del.setCursor(Qt.PointingHandCursor)
-        btn_del.setStyleSheet(f"""
-            QPushButton {{ 
-                background-color: {COLORS['danger']}; 
-                color: white; 
-                border-radius: 4px; 
-                padding: 6px 16px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: #C0392B; }}
-        """)
-        btn_del.clicked.connect(dlg.accept)
-        
-        btn_layout.addWidget(btn_cancel)
-        btn_layout.addWidget(btn_del)
-        layout.addLayout(btn_layout)
-        
-        return dlg.exec_() == QDialog.Accepted
-
-    def _refresh_tag_panel(self):
-        # 【重要优化】清空布局时的标准写法，防止残留对象导致闪退
-        while self.tag_list_layout.count():
-            item = self.tag_list_layout.takeAt(0)
-            if item.widget():
-                item.widget().hide()
-                item.widget().deleteLater()
-            
-        if self.selected_ids:
-            self.tag_panel_title.setText(f"🖊️ 标签管理 ({len(self.selected_ids)})")
-            self.tag_input.setPlaceholderText("输入添加... (双击更多)")
-            self.clear_tag_btn.hide()
-            
-            tags = self.db.get_union_tags(list(self.selected_ids))
-            
-            if not tags:
-                lbl = QLabel("无标签")
-                lbl.setStyleSheet("color:#666; font-style:italic; margin-top:10px;")
-                lbl.setAlignment(Qt.AlignCenter)
-                # 【关键修复】删除错误的 addItem(None) 调用
-                self.tag_list_widget.layout().addWidget(lbl)
+            idea_id = list(self.selected_ids)[0]
+            data = self.db.get_idea(idea_id)
+            if data:
+                # 更新标题输入框的内容
+                self.title_input.setText(data['title'])
+                
+                tags = self.db.get_tags(idea_id)
+                category_name = ""
+                if data['category_id']:
+                    # Inefficient to query every time, but acceptable for this context.
+                    # A better implementation would cache categories on startup.
+                    all_categories = self.db.get_categories()
+                    cat = next((c for c in all_categories if c['id'] == data['category_id']), None)
+                    if cat:
+                        category_name = cat['name']
+                self.metadata_display.update_data(data, tags, category_name)
             else:
-                for tag_name in tags:
-                    chip = TagChipWidget(tag_name)
-                    chip.deleted.connect(self._remove_tag_from_selection)
-                    self.tag_list_layout.addWidget(chip)
-                    
-        else:
-            self.tag_panel_title.setText("🏷️ 最近标签")
-            self.tag_input.setPlaceholderText("🔍 搜索...")
-            if self.current_tag_filter:
-                self.clear_tag_btn.show()
-            else:
-                self.clear_tag_btn.hide()
-                
-            c = self.db.conn.cursor()
-            search_term = self.tag_input.text().strip()
-            sql = '''
-                SELECT t.name, COUNT(it.idea_id) as cnt, MAX(i.updated_at) as last_used
-                FROM tags t 
-                JOIN idea_tags it ON t.id = it.tag_id 
-                JOIN ideas i ON it.idea_id = i.id 
-                WHERE i.is_deleted = 0 
-            '''
-            params = []
-            if search_term:
-                sql += " AND t.name LIKE ?"
-                params.append(f"%{search_term}%")
-            
-            sql += ' GROUP BY t.id ORDER BY last_used DESC, cnt DESC, t.name ASC'
-            
-            c.execute(sql, params)
-            tags = c.fetchall()
-            
-            if not tags:
-                return
-                
-            for row in tags:
-                tag_name = row[0]
-                count = row[1]
-                is_active = (self.current_tag_filter == tag_name)
-                icon = "✓" if is_active else "🕒"
-                
-                btn = QPushButton(f'{icon} {tag_name} ({count})')
-                btn.setCursor(Qt.PointingHandCursor)
-                
-                btn.setContextMenuPolicy(Qt.CustomContextMenu)
-                btn.customContextMenuRequested.connect(lambda pos, n=tag_name: self._show_tag_context_menu(pos, n))
-                
-                bg_color = COLORS['primary'] if is_active else '#333333'
-                border_color = COLORS['primary'] if is_active else '#444444'
-                text_color = 'white' if is_active else '#CCCCCC'
-                
-                btn.setStyleSheet(f"""
-                    QPushButton {{ 
-                        background-color: {bg_color}; 
-                        border: 1px solid {border_color}; 
-                        border-radius: 14px; 
-                        padding: 5px 12px; 
-                        text-align: center; 
-                        color: {text_color}; 
-                        font-size: 12px;
-                        font-family: "Segoe UI", "Microsoft YaHei";
-                    }} 
-                    QPushButton:hover {{ 
-                        background-color: {COLORS['primary']};
-                        border-color: {COLORS['primary']}; 
-                        color: white; 
-                    }}
-                """)
-                btn.clicked.connect(lambda _, t=tag_name: self._filter_by_tag(t))
-                self.tag_list_layout.addWidget(btn)
+                # Handle case where data might not be found (e.g., just deleted)
+                self.metadata_display.update_data(None, [], "")
+                self.title_input.clear()
 
-    def _filter_by_tag(self, tag_name):
-        if self.current_tag_filter == tag_name:
-            self._clear_tag_filter()
-        else:
-            self.current_tag_filter = tag_name
-            self._set_page(1)
-            self.tag_filter_label.setText(f'🏷️ {tag_name}')
-            self.tag_filter_label.show()
-            self.clear_tag_btn.show()
-            
-            QTimer.singleShot(10, self._load_data)
-            QTimer.singleShot(10, self._refresh_tag_panel)
-
-    def _clear_tag_filter(self):
-        self.current_tag_filter = None
-        self.tag_filter_label.hide()
-        self.clear_tag_btn.hide()
-        QTimer.singleShot(10, self._load_data)
-        QTimer.singleShot(10, self._refresh_tag_panel)
+        else: # num_selected > 1
+            self.no_selection_widget.hide()
+            self.multi_selection_widget.show()
+            self.metadata_display.hide()
+            self.title_input.hide() # 隐藏标题输入框
+            self.tag_input.setEnabled(False)
+            self.tag_input.setPlaceholderText("请仅选择一项以查看元数据")
 
     # ==================== 调整大小逻辑 ====================
     def _get_resize_area(self, pos):
@@ -929,10 +889,10 @@ class MainWindow(QWidget):
     def _toggle_maximize(self):
         if self.isMaximized():
             self.showNormal()
-            self.max_btn.setText('□')
+            self.max_btn.setIcon(create_svg_icon("win_max.svg", "#aaa"))
         else:
             self.showMaximized()
-            self.max_btn.setText('❐')
+            self.max_btn.setIcon(create_svg_icon("win_restore.svg", "#aaa"))
 
     def _add_search_to_history(self):
         search_text = self.search.text().strip()
@@ -963,7 +923,6 @@ class MainWindow(QWidget):
         self.last_clicked_id = None
         self.current_tag_filter = None
         self.tag_filter_label.hide()
-        self.clear_tag_btn.hide()
         titles = {'all':'全部数据','today':'今日数据','trash':'回收站','favorite':'我的收藏'}
         if f_type == 'category':
             cat = next((c for c in self.db.get_categories() if c['id'] == val), None)
@@ -974,7 +933,7 @@ class MainWindow(QWidget):
         # 延迟执行，防止在点击事件处理中销毁对象
         QTimer.singleShot(10, self._load_data)
         QTimer.singleShot(10, self._update_ui_state)
-        QTimer.singleShot(10, self._refresh_tag_panel)
+        QTimer.singleShot(10, self._refresh_metadata_panel)
 
     def _load_data(self):
         while self.list_layout.count():
@@ -1027,16 +986,16 @@ class MainWindow(QWidget):
         
         if not in_trash:
             if not is_locked:
-                menu.addAction('✏️ 编辑', self._do_edit)
+                menu.addAction(create_svg_icon('action_edit.svg'), '编辑', self._do_edit)
             else:
-                edit_action = menu.addAction('✏️ 编辑 (已锁定)')
+                edit_action = menu.addAction('编辑 (已锁定)')
                 edit_action.setEnabled(False)
                 
-            menu.addAction('📋 提取(Ctrl+T)', lambda: self._extract_single(idea_id))
+            menu.addAction(create_svg_icon('action_export.svg'), '提取(Ctrl+T)', lambda: self._extract_single(idea_id))
             menu.addSeparator()
             
             # --- 星级评价 ---
-            rating_menu = menu.addMenu("⭐ 设置星级")
+            rating_menu = menu.addMenu(create_svg_icon('star.svg'), "设置星级")
             from PyQt5.QtWidgets import QAction, QActionGroup # 临时导入
             star_group = QActionGroup(self)
             star_group.setExclusive(True)
@@ -1057,24 +1016,24 @@ class MainWindow(QWidget):
                 menu.addAction('🔒 锁定 (Ctrl+S)', self._do_lock)
                 
             menu.addSeparator()
-            menu.addAction('📌 取消置顶' if data['is_pinned'] else '📌 置顶', self._do_pin)
-            menu.addAction('🔖 取消书签' if data['is_favorite'] else '🔖 添加书签', self._do_fav)
+            menu.addAction(create_svg_icon('action_pin_off.svg' if data['is_pinned'] else 'action_pin.svg'), '取消置顶' if data['is_pinned'] else '置顶', self._do_pin)
+            menu.addAction(create_svg_icon('bookmark.svg'), '取消书签' if data['is_favorite'] else '添加书签', self._do_fav)
             menu.addSeparator()
             
             if not is_locked:
-                cat_menu = menu.addMenu('📂 移动到分类')
+                cat_menu = menu.addMenu(create_svg_icon('folder.svg'), '移动到分类')
                 cat_menu.addAction('⚠️ 未分类', lambda: self._move_to_category(None))
                 for cat in self.db.get_categories():
                     cat_menu.addAction(f'📂 {cat["name"]}', lambda cid=cat["id"]: self._move_to_category(cid))
                 menu.addSeparator()
-                menu.addAction('🗑️ 移至回收站', self._do_del)
+                menu.addAction(create_svg_icon('action_delete.svg'), '移至回收站', self._do_del)
             else:
-                del_action = menu.addAction('🗑️ 移至回收站 (已锁定)')
+                del_action = menu.addAction('移至回收站 (已锁定)')
                 del_action.setEnabled(False)
                 
         else:
-            menu.addAction('♻️ 恢复', self._do_restore)
-            menu.addAction('🗑️ 永久删除', self._do_destroy)
+            menu.addAction(create_svg_icon('action_restore.svg'), '恢复', self._do_restore)
+            menu.addAction(create_svg_icon('trash.svg'), '永久删除', self._do_destroy)
             
         card = self.cards.get(idea_id)
         if card: menu.exec_(card.mapToGlobal(pos))
@@ -1191,13 +1150,14 @@ class MainWindow(QWidget):
             idea_id = list(self.selected_ids)[0]
             d = self.db.get_idea(idea_id)
             if d:
-                self.btns['pin'].setText('📍' if not d['is_pinned'] else '📌')
-                self.btns['fav'].setText('🔖' if d['is_favorite'] else '🔖') # 保持图标一致
+                # 动态图标更新
+                self.btns['pin'].setIcon(create_svg_icon('action_pin_off.svg' if d['is_pinned'] else 'action_pin.svg', '#aaa'))
+                # fav图标保持一致即可
         else:
-            self.btns['pin'].setText('📌')
-            self.btns['fav'].setText('🔖')
+            self.btns['pin'].setIcon(create_svg_icon('action_pin.svg', '#aaa'))
+            
         # 【关键修复】异步刷新标签面板
-        QTimer.singleShot(0, self._refresh_tag_panel)
+        QTimer.singleShot(0, self._refresh_metadata_panel)
 
     def _on_new_data_in_category_requested(self, cat_id):
         self._open_edit_dialog(category_id_for_new=cat_id)

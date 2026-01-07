@@ -7,6 +7,7 @@ from PyQt5.QtGui import QCursor, QColor
 from core.config import COLORS
 from ui.common_tags import CommonTags
 from ui.writing_animation import WritingAnimationWidget
+from ui.utils import create_svg_icon
 
 class ActionPopup(QWidget):
     """
@@ -14,7 +15,7 @@ class ActionPopup(QWidget):
     包含：[图标] | [收藏] [自定义常用标签] [管理]
     """
     request_favorite = pyqtSignal(int)
-    request_tag_toggle = pyqtSignal(int, str) # 改回 toggle
+    request_tag_toggle = pyqtSignal(int, str)
     request_manager = pyqtSignal()
 
     def __init__(self, db_manager, parent=None):
@@ -53,15 +54,12 @@ class ActionPopup(QWidget):
         line.setStyleSheet("color: #555; border:none; background: transparent;")
         layout.addWidget(line)
 
-        self.btn_fav = QPushButton("⭐")
+        # 【核心修改】收藏按钮改用 SVG
+        self.btn_fav = QPushButton()
         self.btn_fav.setToolTip("收藏")
+        self.btn_fav.setFixedSize(20, 20)
         self.btn_fav.setCursor(Qt.PointingHandCursor)
-        self.btn_fav.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent; color: #BBB; border: none; font-size: 14px; font-weight: bold; padding: 0px;
-            }}
-            QPushButton:hover {{ color: {COLORS['warning']}; }}
-        """)
+        self.btn_fav.setStyleSheet("background: transparent; border: none;")
         self.btn_fav.clicked.connect(self._on_fav_clicked)
         layout.addWidget(self.btn_fav)
 
@@ -100,13 +98,13 @@ class ActionPopup(QWidget):
         # 刷新标签栏
         self.common_tags_bar.reload_tags(active_tags)
         
-        # 刷新收藏按钮
+        # 刷新收藏按钮 (SVG 切换)
         if is_favorite:
-            self.btn_fav.setText("★") # 金色实心星
-            self.btn_fav.setStyleSheet(f"color: {COLORS['warning']}; border: none; font-size: 16px;")
+            # 实心黄星
+            self.btn_fav.setIcon(create_svg_icon("star_filled.svg", COLORS['warning']))
         else:
-            self.btn_fav.setText("☆") # 白色空心星
-            self.btn_fav.setStyleSheet(f"QPushButton {{ background: transparent; color: #BBB; border: none; font-size: 16px; }} QPushButton:hover {{ color: #FFFFFF; }}")
+            # 空心白星 (用 star.svg，颜色设为灰色)
+            self.btn_fav.setIcon(create_svg_icon("star.svg", "#BBB"))
         
         # 动态调整尺寸
         self.container.adjustSize()
