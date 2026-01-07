@@ -86,21 +86,17 @@ class IdeaRepository(BaseRepository):
             self._execute_script('DELETE FROM idea_tags WHERE idea_id=?', (idea_id,))
             self._execute_script('DELETE FROM ideas WHERE id=?', (idea_id,))
         else:
-            # This is business logic (setting color on delete).
-            # TODO: Move to a service.
-            trash_color = COLORS.get('trash', '#2d2d2d')
+            # Pure data access: just mark as deleted.
             self._execute_script(
-                'UPDATE ideas SET is_deleted=1, category_id=NULL, color=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
-                (trash_color, idea_id)
+                'UPDATE ideas SET is_deleted=1, category_id=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+                (idea_id,)
             )
 
     def restore(self, idea_id: int) -> None:
-        # This is business logic (setting color on restore).
-        # TODO: Move to a service.
-        uncat_color = COLORS.get('uncategorized', '#0A362F')
+        # Pure data access: just mark as not deleted.
         self._execute_script(
-            'UPDATE ideas SET is_deleted=0, category_id=NULL, color=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
-            (uncat_color, idea_id)
+            'UPDATE ideas SET is_deleted=0, category_id=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+            (idea_id,)
         )
 
     def update_field(self, idea_id: int, field: str, value: Any) -> None:

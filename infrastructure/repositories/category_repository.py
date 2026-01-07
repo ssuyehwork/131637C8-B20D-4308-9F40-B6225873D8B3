@@ -39,37 +39,7 @@ class CategoryRepository(BaseRepository):
         self._execute_script('UPDATE categories SET name=? WHERE id=?', (new_name, category_id))
 
     def set_color(self, category_id: int, color: str) -> None:
-        cursor = self.connection.cursor()
-        try:
-            find_ids_query = """
-                WITH RECURSIVE category_tree(id) AS (
-                    SELECT ?
-                    UNION ALL
-                    SELECT c.id FROM categories c JOIN category_tree ct ON c.parent_id = ct.id
-                )
-                SELECT id FROM category_tree;
-            """
-            cursor.execute(find_ids_query, (category_id,))
-            all_ids = [row[0] for row in cursor.fetchall()]
-
-            if not all_ids:
-                return
-
-            placeholders = ','.join('?' * len(all_ids))
-
-            # This logic of updating ideas' color should be in a service, not repository.
-            # However, for now, we keep it to maintain functionality during refactoring.
-            # TODO: Move this business logic to a CategoryService.
-            update_ideas_query = f"UPDATE ideas SET color = ? WHERE category_id IN ({placeholders})"
-            cursor.execute(update_ideas_query, (color, *all_ids))
-
-            update_categories_query = f"UPDATE categories SET color = ? WHERE id IN ({placeholders})"
-            cursor.execute(update_categories_query, (color, *all_ids))
-
-            self.connection.commit()
-        except Exception as e:
-            self.connection.rollback()
-            raise e
+        self._execute_script('UPDATE categories SET color=? WHERE id=?', (color, category_id))
 
     def set_preset_tags(self, category_id: int, tags_str: str) -> None:
         self._execute_script('UPDATE categories SET preset_tags=? WHERE id=?', (tags_str, category_id))
@@ -79,12 +49,7 @@ class CategoryRepository(BaseRepository):
         return row[0] if row else ""
 
     def delete(self, category_id: int) -> None:
-        cursor = self.connection.cursor()
-        # Decouple ideas from the category. This is business logic.
-        # TODO: Move this logic to a CategoryService.
-        cursor.execute('UPDATE ideas SET category_id=NULL WHERE category_id=?', (category_id,))
-        cursor.execute('DELETE FROM categories WHERE id=?', (category_id,))
-        self.connection.commit()
+        self._execute_script('DELETE FROM categories WHERE id=?', (category_id,))
 
     def save_order(self, update_list: List[Dict[str, Any]]) -> None:
         cursor = self.connection.cursor()

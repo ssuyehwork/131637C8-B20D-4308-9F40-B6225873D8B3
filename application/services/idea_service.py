@@ -90,13 +90,18 @@ class IdeaService:
 
     def delete_ideas(self, idea_ids: List[int], permanent: bool = False) -> None:
         locked_statuses = self._idea_repo.get_lock_status(idea_ids)
+        trash_color = COLORS.get('trash', '#2d2d2d')
         for idea_id in idea_ids:
             if not locked_statuses.get(idea_id, False) or permanent:
+                if not permanent:
+                    self._idea_repo.update_field(idea_id, 'color', trash_color)
                 self._idea_repo.delete(idea_id, permanent=permanent)
 
     def restore_ideas(self, idea_ids: List[int]) -> None:
+        uncat_color = COLORS.get('uncategorized', '#0A362F')
         for idea_id in idea_ids:
             self._idea_repo.restore(idea_id)
+            self._idea_repo.update_field(idea_id, 'color', uncat_color)
 
     def add_tags_to_ideas(self, idea_ids: List[int], tags: List[str]) -> None:
         self._idea_repo.add_tags_to_ideas(idea_ids, tags)

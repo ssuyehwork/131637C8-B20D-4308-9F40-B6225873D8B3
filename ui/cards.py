@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, Q
 from PyQt5.QtCore import Qt, pyqtSignal, QPoint, QMimeData, QByteArray
 from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QLinearGradient, QDrag
 from domain.entities import Idea
+from core.config import COLORS
 
 class IdeaCard(QWidget):
     selection_requested = pyqtSignal(int, bool, bool)
