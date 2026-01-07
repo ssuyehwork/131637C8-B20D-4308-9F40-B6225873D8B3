@@ -1,5 +1,6 @@
 # infrastructure/repositories/category_repository.py
 import random
+import sqlite3
 from typing import List, Dict, Any, Optional
 from domain.entities import Category
 from .base_repository import BaseRepository
@@ -101,12 +102,12 @@ class CategoryRepository(BaseRepository):
         finally:
             self.connection.commit()
 
-    def _row_to_entity(self, row: dict) -> Category:
+    def _row_to_entity(self, row: sqlite3.Row) -> Category:
         return Category(
             id=row['id'],
             name=row['name'],
             parent_id=row['parent_id'],
             color=row['color'],
             sort_order=row['sort_order'],
-            preset_tags=row.get('preset_tags') # Use .get for optional field
+            preset_tags=row['preset_tags'] if 'preset_tags' in row.keys() else None
         )

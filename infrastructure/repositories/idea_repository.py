@@ -1,6 +1,7 @@
 # infrastructure/repositories/idea_repository.py
 import hashlib
 import os
+import sqlite3
 from typing import List, Optional, Any, Dict
 from domain.entities import Idea, Tag
 from .base_repository import BaseRepository
@@ -203,7 +204,7 @@ class IdeaRepository(BaseRepository):
 
         return q, p
 
-    def _row_to_entity(self, row: dict) -> Idea:
+    def _row_to_entity(self, row: sqlite3.Row) -> Idea:
         return Idea(
             id=row['id'],
             title=row['title'],
@@ -216,8 +217,8 @@ class IdeaRepository(BaseRepository):
             category_id=row['category_id'],
             is_deleted=bool(row['is_deleted']),
             item_type=row['item_type'],
-            data_blob=row.get('data_blob'), # Use .get for optional fields
-            content_hash=row.get('content_hash'),
+            data_blob=row['data_blob'] if 'data_blob' in row.keys() else None,
+            content_hash=row['content_hash'] if 'content_hash' in row.keys() else None,
             is_locked=bool(row['is_locked']),
             rating=row['rating'],
             tags=[] # Tags are loaded separately
