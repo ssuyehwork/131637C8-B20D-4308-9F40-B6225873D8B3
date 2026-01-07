@@ -782,6 +782,13 @@ class MainWindow(QWidget):
                 WHERE i.is_deleted = 0 
             '''
             params = []
+
+            # 【核心增强】如果当前在分类视图下，则只显示该分类的标签
+            f_type, f_val = self.curr_filter
+            if f_type == 'category' and f_val is not None:
+                sql += " AND i.category_id = ?"
+                params.append(f_val)
+
             if search_term:
                 sql += " AND t.name LIKE ?"
                 params.append(f"%{search_term}%")
