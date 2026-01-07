@@ -212,13 +212,20 @@ class MetadataDisplay(QWidget):
         super().__init__(parent)
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 10, 0, 5)
-        self.layout.setSpacing(16)
+        self.layout.setSpacing(0) # Zebra stripes need 0 spacing
         self.layout.setAlignment(Qt.AlignTop)
 
-    def _add_row(self, icon_name, widget_or_text):
+    def _add_row(self, icon_name, widget_or_text, is_odd=False):
         row_widget = QWidget()
+        row_widget.setAutoFillBackground(True)
+
+        palette = row_widget.palette()
+        color = QColor("#282828") if is_odd else QColor("#2C2C2C")
+        palette.setColor(QPalette.Window, color)
+        row_widget.setPalette(palette)
+
         row_layout = QHBoxLayout(row_widget)
-        row_layout.setContentsMargins(0,0,0,0)
+        row_layout.setContentsMargins(8, 8, 8, 8)
         row_layout.setSpacing(10)
 
         icon = QLabel()
@@ -282,15 +289,16 @@ class MetadataDisplay(QWidget):
 
         if not data: return
 
-        self._add_row("calendar.svg", data['created_at'][:16])
-        self._add_row("calendar.svg", data['updated_at'][:16])
-        self._add_row("folder.svg", category_name if category_name else "未分类")
+        rows_to_add = []
 
-        # --- 星级 ---
+        # Collect all data rows
+        rows_to_add.append(("calendar.svg", data['created_at'][:16]))
+        rows_to_add.append(("calendar.svg", data['updated_at'][:16]))
+        rows_to_add.append(("folder.svg", category_name if category_name else "未分类"))
+
         stars_widget = self._create_stars_widget(data['rating'])
-        self._add_row("star.svg", stars_widget)
+        rows_to_add.append(("star.svg", stars_widget))
 
-        # --- 状态 ---
         states = []
         state_colors = { "置顶": "#3498db", "锁定": "#e74c3c", "书签": "#ff6b81" }
         if data['is_pinned']: states.append("置顶")
@@ -298,9 +306,8 @@ class MetadataDisplay(QWidget):
         if data['is_favorite']: states.append("书签")
         if states:
             states_widget = self._create_capsules_widget(states, state_colors)
-            self._add_row("pin.svg", states_widget)
+            rows_to_add.append(("pin.svg", states_widget))
 
-        # --- 标签 ---
         if tags:
             tag_colors = {}
             for tag in tags:
@@ -308,7 +315,11 @@ class MetadataDisplay(QWidget):
                 colors = ["#1abc9c", "#2ecc71", "#9b59b6", "#e67e22", "#34495e"]
                 tag_colors[tag] = colors[hash_val % len(colors)]
             tags_widget = self._create_capsules_widget(tags, tag_colors)
-            self._add_row("tag.svg", tags_widget)
+            rows_to_add.append(("tag.svg", tags_widget))
+
+        # Add all rows with zebra striping
+        for i, (icon, content) in enumerate(rows_to_add):
+            self._add_row(icon, content, is_odd=(i % 2 != 0))
 
 
 class MainWindow(QWidget):
@@ -620,7 +631,7 @@ class MainWindow(QWidget):
         panel = QWidget()
         panel.setObjectName("RightPanel")
         panel.setStyleSheet(f"#RightPanel {{ background-color: {COLORS['bg_mid']}; }}")
-        panel.setFixedWidth(240) # 稍微加宽以容纳元数据
+        panel.setFixedWidth(240)
         
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(15, 15, 15, 15)
@@ -631,10 +642,10 @@ class MainWindow(QWidget):
         self.metadata_panel_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #4a90e2;")
         layout.addWidget(self.metadata_panel_title)
 
-        # 2. 信息展示区 (使用堆叠布局来切换)
+        # 2. 信息展示区
         self.info_stack = QWidget()
         self.info_stack_layout = QVBoxLayout(self.info_stack)
-        self.info_stack_layout.setContentsMargins(0,0,0,0)
+        self.info_stack_layout.setContentsMargins(0,10,0,0) # Add some top margin
 
         self.no_selection_widget = InfoWidget('select.svg', "未选择项目", "请选择一个项目以查看其元数据")
         self.multi_selection_widget = InfoWidget('all_data.svg', "已选择多个项目", "请仅选择一项以查看其元数据")
@@ -645,26 +656,27 @@ class MainWindow(QWidget):
         self.info_stack_layout.addWidget(self.metadata_display)
 
         layout.addWidget(self.info_stack)
-        layout.addStretch(1) # 添加弹性空间，将输入框推到底部
+        layout.addStretch(1) # Pushes everything below to the bottom
 
-        # 3. 分割线
-        line = QFrame()
-        line.setFrameShape(QFrame.HLine)
-        line.setFrameShadow(QFrame.Plain)
-        line.setStyleSheet(f"background-color: #505050; border: none; max-height: 1px; margin-bottom: 5px;")
-        layout.addWidget(line)
+        # 3. 标题编辑器
+        self.title_editor = QLineEdit()
+        self.title_editor.setPlaceholderText("笔记标题")
+        self.title_editor.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: #2D2D2D; border: 1px solid #444; border-radius: 4px;
+                padding: 6px 8px; font-size: 13px; color: #EEE; font-weight: bold;
+            }}
+            QLineEdit:focus {{ border-color: {COLORS['primary']}; background-color: #38383C; }}
+            QLineEdit:disabled {{ background-color: #252525; color: #666; }}
+        """)
+        self.title_editor.setEnabled(False)
+        self.title_editor.returnPressed.connect(self._save_title)
+        self.title_editor.editingFinished.connect(self._save_title)
+        layout.addWidget(self.title_editor)
 
         # 4. 底部标签输入框
-        self.tag_input_area = QWidget()
-        tag_input_layout = QVBoxLayout(self.tag_input_area)
-        tag_input_layout.setContentsMargins(0,0,0,0)
-
-        label = QLabel("添加标签:")
-        label.setStyleSheet("font-size: 11px; color: #888; border: none; margin-bottom: 4px;")
-        tag_input_layout.addWidget(label)
-        
         self.tag_input = ClickableLineEdit()
-        self.tag_input.setPlaceholderText("请先选择一个项目")
+        self.tag_input.setPlaceholderText("添加标签...")
         self.tag_input.setStyleSheet(f"""
             QLineEdit {{
                 background-color: #2D2D2D; border: 1px solid #444; border-radius: 16px;
@@ -675,9 +687,7 @@ class MainWindow(QWidget):
         """)
         self.tag_input.returnPressed.connect(self._handle_tag_input_return)
         self.tag_input.doubleClicked.connect(self._open_tag_selector_for_selection)
-        tag_input_layout.addWidget(self.tag_input)
-        
-        layout.addWidget(self.tag_input_area)
+        layout.addWidget(self.tag_input)
         
         QTimer.singleShot(0, self._refresh_metadata_panel)
         return panel
@@ -706,6 +716,19 @@ class MainWindow(QWidget):
         self.db.remove_tag_from_multiple_ideas(list(self.selected_ids), tag_name)
         self._refresh_all()
 
+    def _save_title(self):
+        if len(self.selected_ids) != 1:
+            return
+
+        idea_id = list(self.selected_ids)[0]
+        new_title = self.title_editor.text()
+
+        # To prevent saving an unchanged title and triggering unnecessary refreshes
+        current_data = self.db.get_idea(idea_id)
+        if current_data and current_data['title'] != new_title:
+            self.db.update_idea_title(idea_id, new_title)
+            self._refresh_all() # Refresh to show updated title in main list and metadata
+
     def _refresh_metadata_panel(self):
         num_selected = len(self.selected_ids)
 
@@ -715,13 +738,16 @@ class MainWindow(QWidget):
             self.metadata_display.hide()
             self.tag_input.setEnabled(False)
             self.tag_input.setPlaceholderText("请先选择一个项目")
+            self.title_editor.setEnabled(False)
+            self.title_editor.clear()
 
         elif num_selected == 1:
             self.no_selection_widget.hide()
             self.multi_selection_widget.hide()
             self.metadata_display.show()
             self.tag_input.setEnabled(True)
-            self.tag_input.setPlaceholderText("输入添加... (双击更多)")
+            self.tag_input.setPlaceholderText("添加标签...")
+            self.title_editor.setEnabled(True)
 
             idea_id = list(self.selected_ids)[0]
             data = self.db.get_idea(idea_id)
@@ -736,9 +762,13 @@ class MainWindow(QWidget):
                     if cat:
                         category_name = cat['name']
                 self.metadata_display.update_data(data, tags, category_name)
+                self.title_editor.setText(data['title'])
             else:
                 # Handle case where data might not be found (e.g., just deleted)
                 self.metadata_display.update_data(None, [], "")
+                self.title_editor.clear()
+                self.title_editor.setEnabled(False)
+                self.tag_input.setEnabled(False)
 
         else: # num_selected > 1
             self.no_selection_widget.hide()
@@ -746,6 +776,8 @@ class MainWindow(QWidget):
             self.metadata_display.hide()
             self.tag_input.setEnabled(False)
             self.tag_input.setPlaceholderText("请仅选择一项以查看元数据")
+            self.title_editor.setEnabled(False)
+            self.title_editor.clear()
 
     # ==================== 调整大小逻辑 ====================
     def _get_resize_area(self, pos):

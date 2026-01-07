@@ -124,6 +124,12 @@ class DatabaseManager:
         self._update_tags(iid, tags)
         self.conn.commit()
 
+    def update_idea_title(self, idea_id, new_title):
+        if not new_title.strip(): return # Avoid blank titles
+        c = self.conn.cursor()
+        c.execute('UPDATE ideas SET title=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', (new_title, idea_id))
+        self.conn.commit()
+
     def _update_tags(self, iid, tags):
         c = self.conn.cursor()
         c.execute('DELETE FROM idea_tags WHERE idea_id=?', (iid,))
