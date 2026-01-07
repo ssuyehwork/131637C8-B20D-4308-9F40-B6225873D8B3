@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # ui/filter_panel.py
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, 
-                             QTreeWidgetItem, QPushButton, QLabel, QFrame, QApplication)
+                             QTreeWidgetItem, QPushButton, QLabel, QFrame, QApplication, QMenu)
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QMimeData, QPoint
 from PyQt5.QtGui import QDrag, QPixmap, QPainter, QCursor
 from core.config import COLORS
@@ -11,103 +11,85 @@ import logging
 
 log = logging.getLogger("FilterPanel")
 
-class FilterHeader(QWidget):
-    """筛选器自定义标题栏，支持拖拽"""
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFixedHeight(30)
-        self.setStyleSheet(f"background-color: {COLORS['bg_mid']}; border-radius: 4px;")
-        
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(5, 0, 5, 0)
-        
-        self.icon = QLabel()
-        self.icon.setPixmap(create_svg_icon("select.svg", "#aaa").pixmap(14, 14))
-        layout.addWidget(self.icon)
-        
-        self.title = QLabel("高级筛选")
-        self.title.setStyleSheet("font-weight: bold; color: #ccc; font-size: 12px; border:none;")
-        layout.addWidget(self.title)
-        
-        layout.addStretch()
-        
-        self.btn_float = QPushButton()
-        self.btn_float.setIcon(create_svg_icon("win_restore.svg", "#888")) # 用 restore 图标表示浮动
-        self.btn_float.setFixedSize(20, 20)
-        self.btn_float.setToolTip("悬浮 / 拖拽移动")
-        self.btn_float.setCursor(Qt.PointingHandCursor)
-        self.btn_float.setStyleSheet("border:none; background:transparent;")
-        # 按钮点击事件由父级处理
-        layout.addWidget(self.btn_float)
-
 class FilterPanel(QWidget):
     filterChanged = pyqtSignal()
-    dockRequest = pyqtSignal() # 请求停靠回主窗口
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._is_floating = False
-        self._drag_start_pos = None
         
         # 自身样式
         self.setAttribute(Qt.WA_StyledBackground, True)
-        self.setStyleSheet(f"background-color: {COLORS['bg_mid']}; border-radius: 8px;")
+        self.setStyleSheet(f"background-color: {COLORS['bg_dark']}; border-top: 1px solid {COLORS['bg_light']};")
 
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(4, 4, 4, 4)
-        self.layout.setSpacing(5)
+        self.layout = QHBoxLayout(self)
+        self.layout.setContentsMargins(15, 8, 15, 8)
+        self.layout.setSpacing(10)
         
-        # 1. 标题栏 (用于拖拽)
-        self.header = FilterHeader(self)
-        self.header.btn_float.clicked.connect(self.toggle_floating)
-        self.layout.addWidget(self.header)
-        
-        # 2. 树形筛选器
-        self.tree = QTreeWidget()
-        self.tree.setHeaderHidden(True)
-        self.tree.setIndentation(20)
-        self.tree.setFocusPolicy(Qt.NoFocus)
-        self.tree.setRootIsDecorated(True)
-        self.tree.setUniformRowHeights(True)
-        self.tree.setAnimated(True)
-        self.tree.setAllColumnsShowFocus(True)
-        
-        self.tree.setStyleSheet(f"""
-            QTreeWidget {{
-                background-color: {COLORS['bg_mid']};
-                color: #ddd;
-                border: none;
-                font-size: 13px;
-            }}
-            QTreeWidget::item {{
-                height: 26px;
-                border-radius: 4px;
-                padding-right: 5px;
-            }}
-            QTreeWidget::item:hover {{ background-color: #2a2d2e; }}
-            QTreeWidget::item:selected {{ background-color: #37373d; color: white; }}
-        """)
-        
-        self.tree.itemChanged.connect(self._on_item_changed)
-        self.tree.itemClicked.connect(self._on_item_clicked)
-        self.layout.addWidget(self.tree)
-        
-        # 3. 重置按钮
-        self.btn_reset = QPushButton("重置筛选")
-        self.btn_reset.setCursor(Qt.PointingHandCursor)
-        self.btn_reset.setStyleSheet(f"""
+        # 1. 筛选器按钮
+        self.buttons = {}
+        button_style = f"""
             QPushButton {{
-                background-color: {COLORS['bg_dark']};
+                background-color: {COLORS['bg_mid']};
                 border: 1px solid #444;
-                color: #888;
-                border-radius: 4px;
-                padding: 6px;
+                color: #AAA;
+                border-radius: 6px;
+                padding: 5px 12px;
                 font-size: 12px;
             }}
-            QPushButton:hover {{ color: #ddd; background-color: #333; }}
+            QPushButton:hover {{
+                color: #FFF;
+                background-color: #333;
+            }}
+            QPushButton[isChecked="true"] {{
+                background-color: {COLORS['primary']};
+                color: white;
+                font-weight: bold;
+                border: 1px solid {COLORS['primary']};
+            }}
+        """
+        
+        order = [
+            ('stars', '⭐  评级'),
+            ('colors', '🎨  颜色'),
+            ('types', '📂  类型'),
+            ('date_create', '📅  创建时间'),
+            ('tags', '🏷️  标签'),
+        ]
+
+        for key, label in order:
+            btn = QPushButton(label.split('  ')[1])
+            btn.setStyleSheet(button_style)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setCheckable(True)
+            btn.setProperty("isChecked", False)
+            btn.clicked.connect(lambda _, k=key: self._show_filter_menu(k))
+            self.buttons[key] = btn
+            self.layout.addWidget(btn)
+
+        self.layout.addStretch(1)
+
+        # 2. 面包屑标签
+        self.breadcrumb_label = QLabel("无筛选")
+        self.breadcrumb_label.setStyleSheet("color: #777; font-size: 11px;")
+        self.layout.addWidget(self.breadcrumb_label)
+        
+        # 3. 重置按钮
+        self.btn_reset = QPushButton()
+        self.btn_reset.setIcon(create_svg_icon("action_delete.svg", "#888"))
+        self.btn_reset.setFixedSize(28, 28)
+        self.btn_reset.setToolTip("重置所有筛选")
+        self.btn_reset.setCursor(Qt.PointingHandCursor)
+        self.btn_reset.setStyleSheet(f"""
+            QPushButton {{ background-color: transparent; border-radius: 6px; }}
+            QPushButton:hover {{ background-color: {COLORS['bg_light']}; }}
         """)
         self.btn_reset.clicked.connect(self.reset_filters)
         self.layout.addWidget(self.btn_reset)
+
+        # --- 内部数据结构 ---
+        self.tree = QTreeWidget() # 保持 tree 的逻辑，但不显示
+        self.tree.hide()
+        self.tree.itemChanged.connect(self._on_item_changed)
 
         self._block_item_click = False
         self.roots = {}
@@ -144,19 +126,73 @@ class FilterPanel(QWidget):
             child.setData(0, Qt.UserRole, key_val)
             child.setCheckState(0, Qt.Unchecked)
 
+    def _show_filter_menu(self, key):
+        btn = self.buttons[key]
+        root = self.roots[key]
+
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background-color: {COLORS['bg_mid']};
+                color: white;
+                border: 1px solid {COLORS['bg_light']};
+                border-radius: 6px;
+                padding: 4px;
+            }}
+            QMenu::item {{
+                padding: 8px 20px;
+                border-radius: 4px;
+            }}
+            QMenu::item:selected {{
+                background-color: {COLORS['primary']};
+            }}
+        """)
+
+        for i in range(root.childCount()):
+            child = root.child(i)
+            action = menu.addAction(child.text(0))
+            action.setCheckable(True)
+            action.setChecked(child.checkState(0) == Qt.Checked)
+
+            # 使用 lambda 捕获正确的 child item
+            action.triggered.connect(lambda checked, item=child: self._on_menu_action_triggered(item, checked))
+
+        # 计算菜单显示位置
+        pos = btn.mapToGlobal(QPoint(0, btn.height()))
+        menu.exec_(pos)
+
+    def _on_menu_action_triggered(self, item, checked):
+        # 这个方法用于同步 QMenu 的勾选状态到 QTreeWidget
+        self._block_item_click = True
+        item.setCheckState(0, Qt.Checked if checked else Qt.Unchecked)
+        self._block_item_click = False
+        self.filterChanged.emit() # 手动触发，因为 itemChanged 被 block 了
+
     def _on_item_changed(self, item, col):
         if self._block_item_click: return
+        self._update_ui_states()
         self.filterChanged.emit()
 
-    def _on_item_clicked(self, item, column):
-        if item.parent() is None:
-            item.setExpanded(not item.isExpanded())
-        elif item.flags() & Qt.ItemIsUserCheckable:
-            self._block_item_click = True
-            state = item.checkState(0)
-            item.setCheckState(0, Qt.Unchecked if state == Qt.Checked else Qt.Checked)
-            self._block_item_click = False
-            self.filterChanged.emit()
+    def _update_ui_states(self):
+        all_checked_texts = []
+        for key, root in self.roots.items():
+            has_checked = False
+            for i in range(root.childCount()):
+                child = root.child(i)
+                if child.checkState(0) == Qt.Checked:
+                    has_checked = True
+                    text_only = child.text(0).split(' (')[0]
+                    all_checked_texts.append(f"✓ {text_only}")
+
+            btn = self.buttons.get(key)
+            if btn:
+                btn.setProperty("isChecked", has_checked)
+                btn.style().polish(btn)
+
+        if all_checked_texts:
+            self.breadcrumb_label.setText(" · ".join(all_checked_texts))
+        else:
+            self.breadcrumb_label.setText("无筛选")
 
     def update_stats(self, stats):
         self.tree.blockSignals(True)
@@ -192,6 +228,7 @@ class FilterPanel(QWidget):
         
         self._block_item_click = False
         self.tree.blockSignals(False)
+        self._update_ui_states()
 
     def _refresh_node(self, key, data_list, is_col=False):
         root = self.roots[key]
@@ -240,71 +277,5 @@ class FilterPanel(QWidget):
             for i in range(root.childCount()):
                 root.child(i).setCheckState(0, Qt.Unchecked)
         self.tree.blockSignals(False)
+        self._update_ui_states()
         self.filterChanged.emit()
-
-    # --- 拖拽与悬浮逻辑 ---
-    def toggle_floating(self):
-        if self._is_floating:
-            # 变回停靠状态 -> 发射信号让主窗口接管
-            self.dockRequest.emit()
-            self._is_floating = False
-            self.header.btn_float.setIcon(create_svg_icon("win_restore.svg", "#888"))
-        else:
-            # 变成悬浮状态
-            self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-            self.show()
-            self._is_floating = True
-            self.header.btn_float.setIcon(create_svg_icon("win_min.svg", "#888")) # 用这个图标表示“收回”
-
-    def mousePressEvent(self, event):
-        # 仅在头部区域触发拖拽
-        if event.button() == Qt.LeftButton:
-            if self.header.geometry().contains(event.pos()):
-                self._drag_start_pos = event.pos()
-            # 如果是悬浮窗，点击任意位置（非树）也可以拖动窗口
-            elif self._is_floating:
-                self._drag_start_pos = event.globalPos() - self.frameGeometry().topLeft()
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        if not (event.buttons() & Qt.LeftButton) or self._drag_start_pos is None:
-            return
-
-        # 悬浮窗模式：直接移动窗口
-        if self._is_floating:
-            self.move(event.globalPos() - self._drag_start_pos)
-            event.accept()
-            return
-
-        # 停靠模式：触发 Drag 操作，允许拖入其他区域
-        if (event.pos() - self._drag_start_pos).manhattanLength() < QApplication.startDragDistance():
-            return
-
-        drag = QDrag(self)
-        mime = QMimeData()
-        mime.setData("application/x-filter-panel", b"filter-panel")
-        drag.setMimeData(mime)
-        
-        # 拖拽时的缩略图
-        pixmap = self.grab()
-        drag.setPixmap(pixmap.scaledToWidth(200, Qt.SmoothTransformation))
-        drag.setHotSpot(event.pos())
-        
-        # 执行拖拽
-        # 如果是 MoveAction，说明被接受了（被主窗口 DropEvent 处理了）
-        action = drag.exec_(Qt.MoveAction)
-        
-        self._drag_start_pos = None
-
-    def mouseReleaseEvent(self, event):
-        self._drag_start_pos = None
-        super().mouseReleaseEvent(event)
-    
-    def closeEvent(self, event):
-        # 如果是悬浮窗被关闭（比如按Alt+F4），视为请求停靠
-        if self._is_floating:
-            self.dockRequest.emit()
-            self._is_floating = False
-            event.ignore()
-        else:
-            super().closeEvent(event)

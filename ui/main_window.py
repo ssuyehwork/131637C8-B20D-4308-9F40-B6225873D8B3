@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QSplitter, QLine
                                QPushButton, QLabel, QScrollArea, QShortcut, QMessageBox,
                                QApplication, QToolTip, QMenu, QFrame, QTextEdit, QDialog,
                                QGraphicsDropShadowEffect, QLayout, QSizePolicy, QInputDialog)
-from PyQt5.QtCore import Qt, QTimer, QPoint, pyqtSignal, QRect, QSize, QByteArray
+from PyQt5.QtCore import Qt, QTimer, QPoint, pyqtSignal, QRect, QSize, QByteArray, QPropertyAnimation
 from PyQt5.QtGui import QKeySequence, QCursor, QColor, QIntValidator
 from core.config import STYLES, COLORS
 from core.settings import load_setting, save_setting
@@ -259,6 +259,7 @@ class MainWindow(QWidget):
         self._resize_area = None
         self._resize_start_pos = None
         self._resize_start_geometry = None
+        self.is_metadata_panel_visible = False
         
         self.current_page = 1
         self.page_size = 100
@@ -306,55 +307,50 @@ class MainWindow(QWidget):
         titlebar = self._create_titlebar()
         outer_layout.addWidget(titlebar)
         
-        main_content = QWidget()
-        main_layout = QHBoxLayout(main_content)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        # --- 布局重构 ---
         
-        # 1. 默认左侧布局：垂直 Splitter (上Sidebar, 下FilterPanel)
-        self.left_splitter = QSplitter(Qt.Vertical)
-        self.left_splitter.setHandleWidth(2)
+        # 1. 创建中央内容区
+        central_content = QWidget()
+        central_layout = QHBoxLayout(central_content)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
         
+        # 2. 创建并添加侧边栏
         self.sidebar = Sidebar(self.db)
         self.sidebar.filter_changed.connect(self._set_filter)
         self.sidebar.data_changed.connect(self._load_data)
         self.sidebar.new_data_requested.connect(self._on_new_data_in_category_requested)
-        self.left_splitter.addWidget(self.sidebar)
+        self.sidebar.setMinimumWidth(280) # 初始宽度
+        central_layout.addWidget(self.sidebar)
         
+        # 3. 创建并添加中间卡片列表区
+        middle_panel = self._create_middle_panel()
+        central_layout.addWidget(middle_panel, 1) # 设置拉伸因子，使其填充可用空间
+        
+        # 4. 创建并添加右侧元数据面板
+        self.metadata_panel = self._create_metadata_panel()
+        self.metadata_panel.setMinimumWidth(0)
+        self.metadata_panel.hide()
+        central_layout.addWidget(self.metadata_panel)
+        
+        # 将中央内容区添加到主布局
+        outer_layout.addWidget(central_content, 1)
+        
+        # 5. 创建并添加底部筛选器面板
         self.filter_panel = FilterPanel()
         self.filter_panel.filterChanged.connect(self._on_filter_criteria_changed)
-        self.filter_panel.dockRequest.connect(self._on_filter_panel_dock_request) # 处理停靠请求
-        self.left_splitter.addWidget(self.filter_panel)
+        self.filter_panel.setFixedHeight(45)
+        outer_layout.addWidget(self.filter_panel)
         
-        self.left_splitter.setStretchFactor(0, 7)
-        self.left_splitter.setStretchFactor(1, 3)
-        
-        # 2. 主横向 Splitter
-        self.main_splitter = QSplitter(Qt.Horizontal)
-        self.main_splitter.addWidget(self.left_splitter)
-        
-        # 3. 中间列表区
-        middle_panel = self._create_middle_panel()
-        self.main_splitter.addWidget(middle_panel)
-        
-        # 4. 右侧元数据区
-        self.metadata_panel = self._create_metadata_panel()
-        self.main_splitter.addWidget(self.metadata_panel)
-        
-        self.main_splitter.setStretchFactor(0, 1) # Left
-        self.main_splitter.setStretchFactor(1, 4) # Middle
-        self.main_splitter.setStretchFactor(2, 1) # Right
-        
-        main_layout.addWidget(self.main_splitter)
-        outer_layout.addWidget(main_content)
-        
+        # --- 快捷键 ---
         QShortcut(QKeySequence("Ctrl+T"), self, self._handle_extract_key)
         QShortcut(QKeySequence("Ctrl+N"), self, self.new_idea)
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
         QShortcut(QKeySequence("Ctrl+A"), self, self._select_all)
         QShortcut(QKeySequence("Ctrl+F"), self, self.search.setFocus)
-        QShortcut(QKeySequence("Ctrl+E"), self, self._do_fav)
-        QShortcut(QKeySequence("Ctrl+B"), self, self._do_edit)
-        QShortcut(QKeySequence("Ctrl+P"), self, self._do_pin)
+        # Ctrl+B 现在用于侧边栏切换
+        QShortcut(QKeySequence("Ctrl+B"), self, self._toggle_sidebar)
+        QShortcut(QKeySequence("Ctrl+I"), self, self._toggle_metadata_panel)
         QShortcut(QKeySequence("Delete"), self, self._handle_del_key)
         QShortcut(QKeySequence("Ctrl+S"), self, self._do_lock)
 
@@ -367,51 +363,46 @@ class MainWindow(QWidget):
 
         self._restore_window_state()
 
-    # --- 拖拽停靠逻辑 ---
-    def dragEnterEvent(self, event):
-        if event.mimeData().hasFormat("application/x-filter-panel"):
-            event.accept()
-        else:
-            super().dragEnterEvent(event)
+    def _toggle_sidebar(self):
+        is_collapsed = self.sidebar.width() == 60
+        target_width = 280 if is_collapsed else 60
 
-    def dropEvent(self, event):
-        if event.mimeData().hasFormat("application/x-filter-panel"):
-            # 获取放置位置的相对坐标
-            pos = event.pos()
-            # 简单判断区域：
-            # 如果在窗口左侧 1/4 区域 -> 放入左侧 Splitter
-            # 如果在窗口右侧 1/4 区域 -> 放入右侧 Metadata 区域 (需要 Metadata 支持布局插入)
-            # 否则 -> 放入中间 (作为 MainSplitter 的一列)
-            
-            w = self.width()
-            
-            # 必须先从当前父级移除，确保干净的 reparent
-            self.filter_panel.setParent(None) 
-            self.filter_panel.setWindowFlags(Qt.Widget) # 恢复为普通控件
-            
-            if pos.x() < w * 0.25:
-                # 放入左侧 Splitter (默认位置)
-                self.left_splitter.addWidget(self.filter_panel)
-            elif pos.x() > w * 0.75:
-                # 放入右侧，由于 metadata_panel 是 QWidget with VBox，我们加到它的 VBox 里
-                # 或者加到 MainSplitter 的最右侧
-                # 这里为了简单，加到 MainSplitter 最右侧
-                self.main_splitter.addWidget(self.filter_panel)
-            else:
-                # 放入中间 (Sidebar 和 List 之间)
-                self.main_splitter.insertWidget(1, self.filter_panel)
-            
-            self.filter_panel.show()
-            event.accept()
-        else:
-            super().dropEvent(event)
+        self.sidebar_animation = QPropertyAnimation(self.sidebar, b"minimumWidth")
+        self.sidebar_animation.setDuration(300) # 300ms 动画
+        self.sidebar_animation.setStartValue(self.sidebar.width())
+        self.sidebar_animation.setEndValue(target_width)
+        self.sidebar_animation.setEasingCurve(Qt.EaseInOutCubic) # 缓动曲线
+        self.sidebar_animation.start()
 
-    def _on_filter_panel_dock_request(self):
-        # 默认恢复到左侧 Splitter 底部
-        self.filter_panel.setParent(None)
-        self.filter_panel.setWindowFlags(Qt.Widget)
-        self.left_splitter.addWidget(self.filter_panel)
-        self.filter_panel.show()
+    def _show_metadata_panel(self):
+        if self.is_metadata_panel_visible: return
+        self.is_metadata_panel_visible = True
+        self.metadata_panel.show()
+
+        self.metadata_animation = QPropertyAnimation(self.metadata_panel, b"minimumWidth")
+        self.metadata_animation.setDuration(300)
+        self.metadata_animation.setStartValue(0)
+        self.metadata_animation.setEndValue(300)
+        self.metadata_animation.setEasingCurve(Qt.EaseInOutCubic)
+        self.metadata_animation.start()
+
+    def _hide_metadata_panel(self):
+        if not self.is_metadata_panel_visible: return
+        self.is_metadata_panel_visible = False
+
+        self.metadata_animation = QPropertyAnimation(self.metadata_panel, b"minimumWidth")
+        self.metadata_animation.setDuration(300)
+        self.metadata_animation.setStartValue(self.metadata_panel.width())
+        self.metadata_animation.setEndValue(0)
+        self.metadata_animation.setEasingCurve(Qt.EaseInOutCubic)
+        self.metadata_animation.finished.connect(self.metadata_panel.hide)
+        self.metadata_animation.start()
+
+    def _toggle_metadata_panel(self):
+        if self.is_metadata_panel_visible:
+            self._hide_metadata_panel()
+        else:
+            self._show_metadata_panel()
 
     def _select_all(self):
         if not self.cards: return
@@ -435,8 +426,26 @@ class MainWindow(QWidget):
         titlebar.setStyleSheet(f"QWidget {{ background-color: {COLORS['bg_mid']}; border-bottom: 1px solid {COLORS['bg_light']}; border-top-left-radius: 8px; border-top-right-radius: 8px; }}")
         
         layout = QHBoxLayout(titlebar)
-        layout.setContentsMargins(15, 0, 10, 0)
-        layout.setSpacing(6)
+        layout.setContentsMargins(10, 0, 10, 0)
+        layout.setSpacing(8)
+
+        # --- 侧边栏切换按钮 ---
+        self.sidebar_toggle_btn = QPushButton("☰")
+        self.sidebar_toggle_btn.setFixedSize(30, 30)
+        self.sidebar_toggle_btn.setStyleSheet(f"""
+            QPushButton {{
+                font-size: 16px;
+                color: #AAA;
+                background-color: transparent;
+                border: none;
+                border-radius: 6px;
+            }}
+            QPushButton:hover {{
+                background-color: rgba(255, 255, 255, 0.1);
+            }}
+        """)
+        self.sidebar_toggle_btn.clicked.connect(self._toggle_sidebar)
+        layout.addWidget(self.sidebar_toggle_btn)
         
         title = QLabel('💡 快速笔记')
         title.setStyleSheet("font-size: 13px; font-weight: bold; color: #4a90e2;")
@@ -792,6 +801,19 @@ class MainWindow(QWidget):
         self.db.remove_tag_from_multiple_ideas(list(self.selected_ids), tag_name)
         self._refresh_all()
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        width = self.width()
+
+        # 响应式规则
+        if width < 1200:
+            self._hide_metadata_panel()
+
+        if width < 900:
+            # 如果侧边栏是展开的，则强制折叠
+            if self.sidebar.width() == 280:
+                self._toggle_sidebar()
+
     def _refresh_metadata_panel(self):
         num_selected = len(self.selected_ids)
 
@@ -799,15 +821,17 @@ class MainWindow(QWidget):
             self.no_selection_widget.show()
             self.multi_selection_widget.hide()
             self.metadata_display.hide()
-            self.title_input.hide() # 隐藏标题输入框
+            self.title_input.hide()
             self.tag_input.setEnabled(False)
             self.tag_input.setPlaceholderText("请先选择一个项目")
+            self._hide_metadata_panel()
         
         elif num_selected == 1:
+            self._show_metadata_panel()
             self.no_selection_widget.hide()
             self.multi_selection_widget.hide()
             self.metadata_display.show()
-            self.title_input.show() # 显示标题输入框
+            self.title_input.show()
             self.tag_input.setEnabled(True)
             self.tag_input.setPlaceholderText("输入标签添加... (双击更多)")
 
@@ -833,10 +857,11 @@ class MainWindow(QWidget):
                 self.title_input.clear()
 
         else: # num_selected > 1
+            self._hide_metadata_panel()
             self.no_selection_widget.hide()
             self.multi_selection_widget.show()
             self.metadata_display.hide()
-            self.title_input.hide() # 隐藏标题输入框
+            self.title_input.hide()
             self.tag_input.setEnabled(False)
             self.tag_input.setPlaceholderText("请仅选择一项以查看元数据")
 
