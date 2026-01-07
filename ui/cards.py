@@ -18,7 +18,10 @@ class IdeaCard(QFrame):
         self.setCursor(Qt.PointingHandCursor)
         
         # 设置合适的大小策略，使卡片能够适应容器
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+        
+        # 设置最小高度，防止卡片被压缩得太矮
+        self.setMinimumHeight(120)
         
         self._drag_start_pos = None
         self._is_potential_click = False
@@ -34,8 +37,8 @@ class IdeaCard(QFrame):
 
     def _setup_ui_structure(self):
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(15, 12, 15, 12)
-        self.main_layout.setSpacing(8)
+        self.main_layout.setContentsMargins(10, 8, 10, 8)  # 减小边距以增加内容可用宽度
+        self.main_layout.setSpacing(6)  # 减小间距
 
         # 1. Top Section
         top_layout = QHBoxLayout()
@@ -49,7 +52,7 @@ class IdeaCard(QFrame):
         self.icon_layout = QHBoxLayout()
         self.icon_layout.setSpacing(4)
         
-        # 【修改】初始化为不带文本的 QLabel，用于承载 SVG Pixmap
+        # 初始化为不带文本的 QLabel，用于承载 SVG Pixmap
         self.rating_label = QLabel() # 将显示星级 SVG 拼接图
         self.lock_icon = QLabel()
         self.pin_icon = QLabel()
@@ -101,14 +104,14 @@ class IdeaCard(QFrame):
         is_pinned = self.data[4]
         is_favorite = self.data[5]
 
-        # 【核心修改】Rating 星级渲染为 SVG Pixmap
+        # Rating 星级渲染为 SVG Pixmap
         if rating > 0:
             self.rating_label.setPixmap(self._generate_stars_pixmap(rating))
             self.rating_label.show()
         else:
             self.rating_label.hide()
             
-        # 【核心修改】图标渲染为 SVG
+        # 图标渲染为 SVG
         if is_locked:
             self.lock_icon.setPixmap(create_svg_icon("lock.svg", COLORS['success']).pixmap(14, 14))
             self.lock_icon.show()
@@ -152,7 +155,14 @@ class IdeaCard(QFrame):
             content.setStyleSheet("color: rgba(255,255,255,180); margin-top: 2px; background: transparent; font-size: 13px; line-height: 1.4;")
             content.setWordWrap(True)
             content.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-            content.setMaximumHeight(65) 
+            
+            # 【核心修改】移除最大高度限制，允许内容自动伸展
+            content.setMinimumHeight(40)  
+            # content.setMaximumHeight(80) # <--- 已移除
+            
+            # 设置策略，允许垂直方向占据更多空间
+            content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+            
             content.setContentsMargins(0, 0, 0, 0)
             self.content_layout.addWidget(content)
 

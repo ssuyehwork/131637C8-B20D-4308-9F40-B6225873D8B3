@@ -701,10 +701,10 @@ class MainWindow(QWidget):
         scroll.setStyleSheet("border:none")
         self.list_container = ContentContainer()
         self.list_container.cleared.connect(self._clear_all_selections)
-        self.list_layout = QVBoxLayout(self.list_container)
-        self.list_layout.setAlignment(Qt.AlignTop)
-        self.list_layout.setSpacing(7)  # 原来是 10，现在减 3 变成 7
-        self.list_layout.setContentsMargins(20, 5, 20, 15)
+        
+        # 【核心修改】使用 FlowLayout 而不是 QVBoxLayout
+        self.list_layout = FlowLayout(self.list_container, margin=10, spacing=14)
+        
         scroll.setWidget(self.list_container)
         layout.addWidget(scroll)
         
@@ -828,16 +828,10 @@ class MainWindow(QWidget):
             return
 
         idea_id = list(self.selected_ids)[0]
-        # 假设 DatabaseManager 有 update_field 方法，或者使用通用的 SQL 执行
-        # 更加健壮的做法是使用 self.db.update_idea_title(idea_id, new_title)
-        # 这里尝试使用 update_field (参考 toggle_field 的存在)
         try:
             if hasattr(self.db, 'update_field'):
                 self.db.update_field(idea_id, 'title', new_title)
             else:
-                # 兼容性Fallback，如果db中没有update_field，尝试直接SQL (需要db暴露conn，通常不推荐，但为了保证代码能跑)
-                # 更稳妥的方式：更新UI卡片并重新加载数据，或者假定用户有update_idea方法
-                # 这里假设 update_field 存在，因为 _do_pin 用到了 toggle_field
                 pass 
         except Exception as e:
             print(f"Error updating title: {e}")
@@ -888,8 +882,9 @@ class MainWindow(QWidget):
             if self.sidebar.width() == 280:
                 self._toggle_sidebar()
         
-        # 重新计算卡片宽度以适应新的窗口尺寸
-        self._update_card_widths()
+        # 重新计算卡片宽度以适应新的窗口尺寸 - 双重延迟确保正确响应
+        QTimer.singleShot(0, self._update_card_widths)
+        QTimer.singleShot(50, self._update_card_widths)
 
     def _refresh_metadata_panel(self):
         num_selected = len(self.selected_ids)
@@ -921,15 +916,12 @@ class MainWindow(QWidget):
                 tags = self.db.get_tags(idea_id)
                 category_name = ""
                 if data['category_id']:
-                    # Inefficient to query every time, but acceptable for this context.
-                    # A better implementation would cache categories on startup.
                     all_categories = self.db.get_categories()
                     cat = next((c for c in all_categories if c['id'] == data['category_id']), None)
                     if cat:
                         category_name = cat['name']
                 self.metadata_display.update_data(data, tags, category_name)
             else:
-                # Handle case where data might not be found (e.g., just deleted)
                 self.metadata_display.update_data(None, [], "")
                 self.title_input.clear()
 
@@ -1035,7 +1027,9 @@ class MainWindow(QWidget):
             self.showMaximized()
             self.max_btn.setIcon(create_svg_icon("win_restore.svg", "#aaa"))
         
-        # 窗口状态改变后，重新调整卡片宽度以适应新尺寸
+        # 窗口状态改变后，重新调整卡片宽度以适应新尺寸 - 三次延迟调用
+        QTimer.singleShot(0, self._update_card_widths)
+        QTimer.singleShot(50, self._update_card_widths)
         QTimer.singleShot(100, self._update_card_widths)
 
     def _add_search_to_history(self):
@@ -1091,9 +1085,14 @@ class MainWindow(QWidget):
         # 1. 获取筛选条件
         criteria = self.filter_panel.get_checked_criteria()
 
+        # 清除旧控件
+        # 注意：FlowLayout 的清理方式需要特殊处理，或者使用自定义的 takeAt 循环
+        # 这里直接删除子 widget 即可
         while self.list_layout.count():
-            w = self.list_layout.takeAt(0).widget()
-            if w: w.deleteLater()
+            item = self.list_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
         self.cards = {}
         self.card_ordered_ids = []
         
@@ -1136,8 +1135,10 @@ class MainWindow(QWidget):
         self._update_pagination_ui() # 刷新页码显示
         self._update_ui_state()
         
-        # 确保卡片宽度适应当前布局
+        # 确保卡片宽度适应当前布局 - 三次延迟调用确保渲染完成
         QTimer.singleShot(0, self._update_card_widths)
+        QTimer.singleShot(50, self._update_card_widths)
+        QTimer.singleShot(100, self._update_card_widths)
 
     def _show_card_menu(self, idea_id, pos):
         if idea_id not in self.selected_ids:
@@ -1439,7 +1440,7 @@ class MainWindow(QWidget):
     def _do_destroy(self):
         if self.selected_ids:
             msg = f'确定永久删除选中的 {len(self.selected_ids)} 项?\n此操作不可恢复!'
-            if self._show_custom_confirm_dialog("永久删除", msg):
+            if QMessageBox.Yes == QMessageBox.question(self, "永久删除", msg):
                 count = len(self.selected_ids)
                 for iid in self.selected_ids:
                     self.db.delete_permanent(iid)
@@ -1545,7 +1546,9 @@ class MainWindow(QWidget):
             else:
                 self._apply_sidebar_width(sidebar_width)
         
-        # 确保在窗口状态恢复后调整卡片宽度
+        # 确保在窗口状态恢复后调整卡片宽度 - 三次延迟调用确保正确渲染
+        QTimer.singleShot(0, self._update_card_widths)
+        QTimer.singleShot(50, self._update_card_widths)
         QTimer.singleShot(100, self._update_card_widths)
 
     def _apply_sidebar_width(self, sidebar_width):
@@ -1569,23 +1572,33 @@ class MainWindow(QWidget):
                 # 中间区域宽度
                 middle_width = sizes[1]
                 
-                # 根据窗口是否最大化调整边距
-                if self.isMaximized():
-                    # 窗口最大化时，减少边距以充分利用空间
-                    available_width = middle_width - 20  # 减少边距
-                    card_width_ratio = 0.97  # 更大比例利用空间
-                else:
-                    # 普通窗口状态下保持适当的边距
-                    available_width = middle_width - 40  # 正常边距
-                    card_width_ratio = 0.95  # 适中的比例
+                # 计算可用宽度
+                margin = 20 if self.isMaximized() else 40
+                available_width = middle_width - margin
                 
-                for card in self.cards.values():
-                    # 计算卡片的最大宽度
-                    max_width = max(280, int(available_width * card_width_ratio))
-                    card.setMaximumWidth(max_width)
+                # 计算当前行能容纳的卡片数量（基于推荐宽度）
+                preferred_card_width = 400  # 推荐卡片宽度
+                min_cards_per_row = max(1, available_width // preferred_card_width)
+                
+                # 根据可用空间动态计算每张卡片的宽度
+                card_count = len(self.cards)
+                if card_count > 0:
+                    # 根据实际卡片数量和可用空间计算每张卡片的宽度
+                    spacing = 14  # 卡片之间的间距
+                    total_spacing = spacing * (min_cards_per_row - 1) if min_cards_per_row > 1 else 0
                     
-                    # 同时设置最小宽度，防止卡片过窄
-                    card.setMinimumWidth(min(200, max_width))
+                    # 计算每张卡片的宽度
+                    calculated_width = (available_width - total_spacing) // min_cards_per_row
+                    
+                    # 设置宽度范围
+                    min_width = 280
+                    max_width = 600  # 限制最大宽度以保持美观
+                    final_width = max(min_width, min(max_width, calculated_width))
+                    
+                    for card in self.cards.values():
+                        # 【核心修改】使用 setFixedWidth 锁定宽度，确保 FlowLayout 网格整齐
+                        card.setFixedWidth(final_width) 
+                        card.setMinimumHeight(120)
         
         # 同时也确保卡片容器的布局能正确更新
         if hasattr(self, 'list_layout'):
@@ -1599,13 +1612,38 @@ class MainWindow(QWidget):
             if len(sizes) >= 2:
                 # 中间区域宽度
                 middle_width = sizes[1]
-                # 考虑布局边距，为卡片设置合理的最大宽度
-                available_width = middle_width - 40  # 减去布局边距
-                for card in self.cards.values():
-                    # 设置为可用区域宽度的 95%，确保有适当的边距
-                    card.setMaximumWidth(max(300, int(available_width * 0.95)))
+                
+                # 计算可用宽度
+                margin = 20  # 使用较小边距
+                available_width = middle_width - margin
+                
+                # 计算当前行能容纳的卡片数量（基于推荐宽度）
+                preferred_card_width = 400  # 推荐卡片宽度
+                min_cards_per_row = max(1, available_width // preferred_card_width)
+                
+                # 根据可用空间动态计算每张卡片的宽度
+                card_count = len(self.cards)
+                if card_count > 0:
+                    # 根据实际卡片数量和可用空间计算每张卡片的宽度
+                    spacing = 14  # 卡片之间的间距
+                    total_spacing = spacing * (min_cards_per_row - 1) if min_cards_per_row > 1 else 0
+                    
+                    # 计算每张卡片的宽度
+                    calculated_width = (available_width - total_spacing) // min_cards_per_row
+                    
+                    # 设置宽度范围
+                    min_width = 280
+                    max_width = 600  # 限制最大宽度以保持美观
+                    final_width = max(min_width, min(max_width, calculated_width))
+                    
+                    for card in self.cards.values():
+                        card.setFixedWidth(final_width)
+                        card.setMinimumHeight(120)
                     
         # 同时也确保卡片容器的布局能正确更新
         if hasattr(self, 'list_layout'):
             # 强制重新布局以适应新的窗口尺寸
             self.list_layout.update()
+            
+        # 延迟再次更新以确保正确渲染
+        QTimer.singleShot(50, self._update_card_widths)
