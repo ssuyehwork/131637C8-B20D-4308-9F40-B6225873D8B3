@@ -39,17 +39,6 @@ class IdeaService:
 
     def set_favorite(self, iid, state):
         self.idea_repo.update_field(iid, 'is_favorite', 1 if state else 0)
-        if state:
-            self.idea_repo.update_field(iid, 'color', '#ff6b81')
-        else:
-            # 简化逻辑：恢复为默认或未分类颜色
-            # 更佳实践：查询该 idea 是否有分类，如果有则恢复分类颜色
-            cat_id_row = self.idea_repo.get_by_id(iid)
-            if cat_id_row and cat_id_row['category_id']:
-                # 获取分类颜色 (这里略复杂，暂用未分类颜色代替)
-                self.idea_repo.update_field(iid, 'color', COLORS['default_note'])
-            else:
-                self.idea_repo.update_field(iid, 'color', COLORS['uncategorized'])
 
     def set_deleted(self, iid, state):
         val = 1 if state else 0
