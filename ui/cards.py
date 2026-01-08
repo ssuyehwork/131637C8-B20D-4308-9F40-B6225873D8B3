@@ -130,7 +130,7 @@ class IdeaCard(QFrame):
 
         # 书签 (核心修复：背景是粉色，所以图标必须是白色，否则看不见)
         if is_favorite:
-            self.fav_icon.setPixmap(create_svg_icon("bookmark.svg", "#FFFFFF").pixmap(14, 14))
+            self.fav_icon.setPixmap(create_svg_icon("bookmark.svg", "#ff6b81").pixmap(14, 14))
             self.fav_icon.show()
         else:
             self.fav_icon.hide()
