@@ -66,10 +66,26 @@ class AppManager(QObject):
             from ui.utils import create_svg_icon
             m = QMenu(self.ball)
             m.setStyleSheet("""
-                QMenu { background-color: #2b2b2b; color: #f0f0f0; border: 1px solid #444; border-radius: 5px; }
-                QMenu::item { padding: 6px 25px; }
-                QMenu::item:selected { background-color: #5D4037; color: #fff; }
-                QMenu::separator { background-color: #444; height: 1px; margin: 4px 0; }
+                QMenu {
+                    background-color: #2b2b2b;
+                    color: #f0f0f0;
+                    border: 1px solid #444;
+                    border-radius: 5px;
+                    padding: 5px;
+                }
+                QMenu::item {
+                    padding: 6px 15px 6px 5px;
+                    border-radius: 3px;
+                }
+                QMenu::item:selected {
+                    background-color: #5D4037;
+                    color: #fff;
+                }
+                QMenu::separator {
+                    background-color: #444;
+                    height: 1px;
+                    margin: 4px 0;
+                }
             """)
             skin_menu = m.addMenu(create_svg_icon('display.svg'), "切换外观")
             a1 = skin_menu.addAction(create_svg_icon('coffee.svg'), "摩卡·勃艮第"); a1.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_MOCHA))
