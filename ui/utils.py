@@ -57,6 +57,9 @@ _system_icons = {
     
     # 【修复】action_pin_off.svg: 取消置顶 (带斜杠)
     'action_pin_off.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"></line><path d="M12 17v5"/><path d="M9 9v3l-3 3v2h7.6"/><path d="M9.4 5H17v2h-1v7l.35.35"/><path d="M9 3h8"/></svg>""",
+
+    # 【新增】action_pin_filled.svg: 实心图钉
+    'action_pin_filled.svg': """<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 17v5"/><path d="M5 17h14v-2l-3-3V5h1V3H7v2h1v7l-3 3v2z"/></svg>""",
     
     'action_fav.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>""",
     'action_fav_filled.svg': """<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>""",
