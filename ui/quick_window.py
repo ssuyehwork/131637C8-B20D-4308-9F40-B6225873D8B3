@@ -388,6 +388,7 @@ class QuickWindow(QWidget):
             is_locked = data['is_locked']
             rating = data['rating']
 
+            # --- 菜单样式优化 ---
             menu = QMenu(self)
             menu.setStyleSheet("""
                 QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; border-radius: 4px; padding: 4px; }
@@ -418,19 +419,22 @@ class QuickWindow(QWidget):
             action_clear_rating = rating_menu.addAction("清除评级")
             action_clear_rating.triggered.connect(lambda: self._do_set_rating(0))
             
-            # 【核心修改】彩色图标 + 锁定逻辑
+            # 【核心修改】
             if is_locked:
                 menu.addAction(create_svg_icon('lock.svg', COLORS['success']), "解锁", self._do_lock_selected)
             else:
                 menu.addAction(create_svg_icon('lock.svg', '#aaaaaa'), "锁定 (Ctrl+S)", self._do_lock_selected)
 
-            action_pin = menu.addAction(create_svg_icon('action_pin_off.svg' if is_pinned else 'action_pin.svg', '#3498db'), "取消置顶" if is_pinned else "置顶")
+            if is_pinned:
+                action_pin = menu.addAction(create_svg_icon('pin_vertical.svg', '#e74c3c'), "取消置顶")
+            else:
+                action_pin = menu.addAction(create_svg_icon('pin_tilted.svg', '#aaaaaa'), "置顶")
             action_pin.triggered.connect(self._do_toggle_pin)
             
             action_fav = menu.addAction(create_svg_icon('bookmark.svg', '#ff6b81'), "取消书签" if is_fav else "添加书签")
             action_fav.triggered.connect(self._do_toggle_favorite)
             
-            # 即使锁定也允许编辑
+            # 允许编辑
             action_edit = menu.addAction(create_svg_icon('action_edit.svg', '#4a90e2'), "编辑")
             action_edit.triggered.connect(self._do_edit_selected)
             
@@ -440,7 +444,6 @@ class QuickWindow(QWidget):
                 action_del = menu.addAction(create_svg_icon('action_delete.svg', '#e74c3c'), "删除")
                 action_del.triggered.connect(self._do_delete_selected)
             else:
-                # 锁定只禁用删除
                 del_action = menu.addAction(create_svg_icon('action_delete.svg', '#555555'), "删除 (已锁定)")
                 del_action.setEnabled(False)
 
@@ -486,7 +489,7 @@ class QuickWindow(QWidget):
     def _do_edit_selected(self):
         iid = self._get_selected_id()
         if iid:
-            # 移除锁定检查，允许编辑
+            # 允许编辑
             for dialog in self.open_dialogs:
                 if hasattr(dialog, 'idea_id') and dialog.idea_id == iid: dialog.activateWindow(); return
             dialog = EditDialog(self.db, idea_id=iid, parent=None)
@@ -523,12 +526,7 @@ class QuickWindow(QWidget):
             self._update_list()
 
     def _handle_category_drop(self, idea_id, cat_id):
-        # 拖拽移动，锁定状态下允许吗？既然允许移动分类，那拖拽也应该允许
-        # 但如果是删除到回收站，则不允许
-        # 这里暂时保留锁定检查，防止误操作
-        # status = self.db.get_lock_status([idea_id])
-        # if status.get(idea_id, 0): return
-        
+        # 允许移动，除非删除到回收站
         target_item = None
         it = QTreeWidgetItemIterator(self.partition_tree)
         while it.value():
@@ -541,7 +539,6 @@ class QuickWindow(QWidget):
         target_data = target_item.data(0, Qt.UserRole)
         target_type = target_data.get('type')
         
-        # 如果目标是回收站，且已锁定，则禁止
         if target_type == 'trash':
             status = self.db.get_lock_status([idea_id])
             if status.get(idea_id, 0): return

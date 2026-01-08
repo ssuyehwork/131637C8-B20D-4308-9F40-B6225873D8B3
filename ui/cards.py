@@ -17,12 +17,11 @@ class IdeaCard(QFrame):
         self.db = db
         self.setCursor(Qt.PointingHandCursor)
         
-        # 水平 Expanding (占满父容器), 垂直 Minimum (适应内容高度)
+        # 布局策略：水平填满，垂直适应
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         
         self.setMinimumWidth(0)
         self.setMaximumWidth(16777215)
-        
         self.setMinimumHeight(80)
         
         self._drag_start_pos = None
@@ -34,7 +33,8 @@ class IdeaCard(QFrame):
 
     def update_data(self, data):
         self.data = data
-        self.id = data[0]
+        # 使用键名访问，确保 ID 获取正确
+        self.id = data['id']
         self._refresh_ui_content()
 
     def _setup_ui_structure(self):
@@ -50,8 +50,7 @@ class IdeaCard(QFrame):
         self.title_label.setStyleSheet("font-size:15px; font-weight:bold; background:transparent; color:white;")
         self.title_label.setWordWrap(True) 
         self.title_label.setContentsMargins(0, 0, 5, 0)
-        
-        # 使用 Ignored 策略，强制文字换行
+        # 强制换行策略
         self.title_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         
         top_layout.addWidget(self.title_label, 1) # 权重1
@@ -81,20 +80,15 @@ class IdeaCard(QFrame):
         self.content_layout.setContentsMargins(0,0,0,0)
         self.main_layout.addWidget(self.content_widget)
 
-        # 3. 底部区域 (时间 + 标签)
+        # 3. 底部区域
         bot_layout = QHBoxLayout()
         bot_layout.setSpacing(6)
-        
-        # 【修改】移除了单独的 time_icon QLabel
-        # 直接使用 time_label 显示图标和时间
         
         self.time_label = QLabel()
         self.time_label.setStyleSheet("color:rgba(255,255,255,100); font-size:12px; background:transparent;")
         self.time_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
         
         bot_layout.addWidget(self.time_label)
-        
-        # 弹簧
         bot_layout.addStretch() 
         
         self.tags_layout = QHBoxLayout()
@@ -104,59 +98,65 @@ class IdeaCard(QFrame):
         self.main_layout.addLayout(bot_layout)
 
     def _refresh_ui_content(self):
-        self.title_label.setText(self.data[1])
+        # 使用键名访问，防止索引错位
+        self.title_label.setText(self.data['title'])
         
-        rating = self.data[14] if len(self.data) > 14 else 0
-        is_locked = self.data[13] if len(self.data) > 13 else 0
-        is_pinned = self.data[4]
-        is_favorite = self.data[5]
+        # 安全获取字段
+        rating = self.data['rating'] if 'rating' in self.data.keys() else 0
+        is_locked = self.data['is_locked'] if 'is_locked' in self.data.keys() else 0
+        is_pinned = self.data['is_pinned']
+        is_favorite = self.data['is_favorite']
 
-        if rating > 0:
+        # 星级
+        if rating and rating > 0:
             self.rating_label.setPixmap(self._generate_stars_pixmap(rating))
             self.rating_label.show()
         else:
             self.rating_label.hide()
             
+        # 锁定 (绿色图标)
         if is_locked:
             self.lock_icon.setPixmap(create_svg_icon("lock.svg", COLORS['success']).pixmap(14, 14))
             self.lock_icon.show()
         else:
             self.lock_icon.hide()
 
+        # 置顶 (红色实心图标)
         if is_pinned:
-            self.pin_icon.setPixmap(create_svg_icon("action_pin.svg", "#cccccc").pixmap(14, 14))
+            self.pin_icon.setPixmap(create_svg_icon("pin_vertical.svg", "#e74c3c").pixmap(14, 14))
             self.pin_icon.show()
         else:
             self.pin_icon.hide()
 
+        # 书签 (核心修复：背景是粉色，所以图标必须是白色，否则看不见)
         if is_favorite:
-            self.fav_icon.setPixmap(create_svg_icon("bookmark.svg", "#ff6b81").pixmap(14, 14))
+            self.fav_icon.setPixmap(create_svg_icon("bookmark.svg", "#FFFFFF").pixmap(14, 14))
             self.fav_icon.show()
         else:
             self.fav_icon.hide()
 
+        # 内容渲染
         while self.content_layout.count():
             item = self.content_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
         
-        item_type = self.data[10] if len(self.data) > 10 and self.data[10] else 'text'
+        item_type = self.data['item_type'] or 'text'
         
-        if item_type == 'image' and self.data[11]:
+        if item_type == 'image' and self.data['data_blob']:
             pixmap = QPixmap()
-            pixmap.loadFromData(self.data[11])
+            pixmap.loadFromData(self.data['data_blob'])
             if not pixmap.isNull():
                 img_label = QLabel()
-                # 限制图片最大显示尺寸
                 scaled_pixmap = pixmap.scaled(QSize(600, 300), Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 img_label.setPixmap(scaled_pixmap)
                 img_label.setStyleSheet("background: transparent;")
                 img_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
                 self.content_layout.addWidget(img_label)
                 
-        elif self.data[2]:
-            preview_text = self.data[2].strip()[:300].replace('\n', ' ')
-            if len(self.data[2]) > 300: preview_text += "..."
+        elif self.data['content']:
+            preview_text = self.data['content'].strip()[:300].replace('\n', ' ')
+            if len(self.data['content']) > 300: preview_text += "..."
             content = QLabel(preview_text)
             content.setStyleSheet("color: rgba(255,255,255,180); margin-top: 4px; background: transparent; font-size: 13px; line-height: 1.5;")
             content.setWordWrap(True)
@@ -164,10 +164,10 @@ class IdeaCard(QFrame):
             content.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Minimum)
             self.content_layout.addWidget(content)
 
-        # 【核心修改】直接在文本中添加时钟符号
-        # 使用 \ufe0e 尝试强制文本显示模式 (防止变成彩色 Emoji)
-        self.time_label.setText(f'🕒 {self.data[7][:16]}')
+        # 时间 (带时钟符号)
+        self.time_label.setText(f'🕒 {self.data["updated_at"][:16]}')
         
+        # 标签
         while self.tags_layout.count():
             item = self.tags_layout.takeAt(0)
             if item.widget(): item.widget().deleteLater()
@@ -202,7 +202,7 @@ class IdeaCard(QFrame):
         return pixmap
 
     def update_selection(self, selected):
-        bg_color = self.data[3]
+        bg_color = self.data['color']
         base_style = f"""
             IdeaCard {{
                 background-color: {bg_color};

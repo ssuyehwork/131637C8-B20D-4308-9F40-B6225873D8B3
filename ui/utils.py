@@ -21,9 +21,12 @@ _icon_theme_colors = {
     'lock.svg':          '#e74c3c', 
     'star_filled.svg':   '#f39c12',
     'action_fav_filled.svg': '#ff6b81', 
-    'pin.svg':           '#cccccc',
     'pencil.svg':        '#aaaaaa',
-    'clock.svg':         '#aaaaaa'
+    'clock.svg':         '#aaaaaa',
+    
+    # 【新增】置顶图标配色
+    'pin_tilted.svg':    '#aaaaaa', # 未置顶：灰色
+    'pin_vertical.svg':  '#e74c3c'  # 已置顶：红色
 }
 
 # ==========================================
@@ -44,19 +47,17 @@ _system_icons = {
     'win_max.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>""",
     'win_restore.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="10" height="10" rx="1"/><rect x="11" y="3" width="10" height="10" rx="1"/></svg>""",
     'win_min.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>""",
-    'win_pin.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4a2 2 0 0 0-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42z"/><circle cx="12" cy="12" r="2"/></svg>""",
-    'win_pin_filled.svg': """<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4a2 2 0 0 0-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42z"/><circle cx="12" cy="12" r="2"/></svg>""",
     'win_sidebar.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>""",
 
     # --- 功能操作 ---
     'action_add.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>""",
     'action_edit.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>""",
     
-    # 【修复】action_pin.svg: 真正的图钉图标 (Thumbtack)
-    'action_pin.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M5 17h14v-2l-3-3V5h1V3H7v2h1v7l-3 3v2z"/></svg>""",
+    # 【新增】pin_tilted.svg: 倾斜、空心 (Outline)
+    'pin_tilted.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" transform="rotate(45 12 12)"><path d="M16 12V8H8v4l-2 2v2h5v6l1 1 1-1v-6h5v-2l-2-2z"></path></svg>""",
     
-    # 【修复】action_pin_off.svg: 取消置顶 (带斜杠)
-    'action_pin_off.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"></line><path d="M12 17v5"/><path d="M9 9v3l-3 3v2h7.6"/><path d="M9.4 5H17v2h-1v7l.35.35"/><path d="M9 3h8"/></svg>""",
+    # 【新增】pin_vertical.svg: 垂直、实心 (Filled)
+    'pin_vertical.svg': """<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1.03 1 1.03-1v-7H19v-2c-1.66 0-3-1.34-3-3z"></path></svg>""",
     
     'action_fav.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>""",
     'action_fav_filled.svg': """<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>""",

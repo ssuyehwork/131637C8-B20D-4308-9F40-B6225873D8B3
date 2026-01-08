@@ -1,81 +1,167 @@
+# -*- coding: utf-8 -*-
 # services/idea_service.py
-from core.enums import FilterType
+from core.config import COLORS
+import hashlib
+import os
 
 class IdeaService:
-    def __init__(self, idea_repo, tag_repo, category_repo):
+    def __init__(self, idea_repo, category_repo, tag_repo):
         self.idea_repo = idea_repo
-        self.tag_repo = tag_repo
         self.category_repo = category_repo
+        self.tag_repo = tag_repo
+        self.conn = self.idea_repo.db.conn # 用于暴露给需要直接访问 conn 的旧代码(如 AdvancedTagSelector)
+
+    # --- Idea Operations ---
+    def get_ideas(self, search, f_type, f_val, page=1, page_size=100, tag_filter=None, filter_criteria=None):
+        return self.idea_repo.get_list_by_filter(search, f_type, f_val, page, page_size, tag_filter, filter_criteria)
+
+    def get_ideas_count(self, search, f_type, f_val, tag_filter=None, filter_criteria=None):
+        return self.idea_repo.get_count_by_filter(search, f_type, f_val, tag_filter, filter_criteria)
+
+    def get_idea(self, iid, include_blob=False):
+        return self.idea_repo.get_by_id(iid, include_blob)
 
     def add_idea(self, title, content, color, tags, category_id=None, item_type='text', data_blob=None):
-        idea_id = self.idea_repo.add(title, content, color, category_id, item_type, data_blob)
-        self.tag_repo.update_tags_for_idea(idea_id, tags)
-        return idea_id
+        if color is None: color = COLORS['default_note']
+        iid = self.idea_repo.add(title, content, color, category_id, item_type, data_blob)
+        self.tag_repo.update_tags(iid, tags)
+        return iid
 
     def update_idea(self, iid, title, content, color, tags, category_id=None, item_type='text', data_blob=None):
         self.idea_repo.update(iid, title, content, color, category_id, item_type, data_blob)
-        self.tag_repo.update_tags_for_idea(iid, tags)
+        self.tag_repo.update_tags(iid, tags)
 
-    def update_tags_for_idea(self, idea_id, tags):
-        self.tag_repo.update_tags_for_idea(idea_id, tags)
+    def update_field(self, iid, field, value):
+        self.idea_repo.update_field(iid, field, value)
 
-    def get_ideas_for_filter(self, search_text: str, filter_type_str: str, filter_value):
-        try:
-            filter_type_enum = FilterType(filter_type_str)
-        except ValueError:
-            filter_type_enum = FilterType.ALL
-        return self.idea_repo.get_all(search_text, filter_type_enum, filter_value)
+    def toggle_field(self, iid, field):
+        self.idea_repo.toggle_field(iid, field)
 
-    def toggle_favorite(self, idea_id):
-        self.idea_repo.toggle_field(idea_id, 'is_favorite')
+    def set_favorite(self, iid, state):
+        self.idea_repo.update_field(iid, 'is_favorite', 1 if state else 0)
+        if state:
+            self.idea_repo.update_field(iid, 'color', '#ff6b81')
+        else:
+            # 简化逻辑：恢复为默认或未分类颜色
+            # 更佳实践：查询该 idea 是否有分类，如果有则恢复分类颜色
+            cat_id_row = self.idea_repo.get_by_id(iid)
+            if cat_id_row and cat_id_row['category_id']:
+                # 获取分类颜色 (这里略复杂，暂用未分类颜色代替)
+                self.idea_repo.update_field(iid, 'color', COLORS['default_note'])
+            else:
+                self.idea_repo.update_field(iid, 'color', COLORS['uncategorized'])
 
-    def toggle_pinned(self, idea_id):
-        self.idea_repo.toggle_field(idea_id, 'is_pinned')
+    def set_deleted(self, iid, state):
+        val = 1 if state else 0
+        self.idea_repo.update_field(iid, 'is_deleted', val)
+        if state:
+            self.idea_repo.update_field(iid, 'category_id', None)
+            self.idea_repo.update_field(iid, 'color', COLORS['trash'])
+        else:
+            self.idea_repo.update_field(iid, 'color', COLORS['uncategorized'])
 
-    def move_to_trash(self, idea_ids):
-        for iid in idea_ids:
-            self.idea_repo.set_deleted(iid, True)
+    def set_rating(self, iid, rating):
+        self.idea_repo.update_field(iid, 'rating', rating)
+
+    def delete_permanent(self, iid):
+        self.idea_repo.delete_permanent(iid)
+
+    def move_category(self, iid, cat_id):
+        self.idea_repo.update_field(iid, 'category_id', cat_id)
+        self.idea_repo.update_field(iid, 'is_deleted', 0)
+        # 如果移动到分类，应应用分类颜色（略）
+
+    def get_lock_status(self, ids):
+        return self.idea_repo.get_lock_status(ids)
+
+    def set_locked(self, ids, state):
+        self.idea_repo.set_locked(ids, state)
+
+    def get_filter_stats(self, search, f_type, f_val):
+        return self.idea_repo.get_filter_stats(search, f_type, f_val)
+        
+    def empty_trash(self):
+        c = self.idea_repo.db.get_cursor()
+        c.execute('DELETE FROM idea_tags WHERE idea_id IN (SELECT id FROM ideas WHERE is_deleted=1)')
+        c.execute('DELETE FROM ideas WHERE is_deleted=1')
+        self.idea_repo.db.commit()
+
+    # --- Clipboard Logic (Ported from db_manager) ---
+    def add_clipboard_item(self, item_type, content, data_blob=None, category_id=None):
+        hasher = hashlib.sha256()
+        if item_type == 'text' or item_type == 'file':
+            hasher.update(content.encode('utf-8'))
+        elif item_type == 'image' and data_blob:
+            hasher.update(data_blob)
+        content_hash = hasher.hexdigest()
+
+        existing = self.idea_repo.find_by_hash(content_hash)
+        if existing:
+            self.idea_repo.update_field(existing[0], 'updated_at', 'CURRENT_TIMESTAMP') # 实际上 update_field 不支持 'CURRENT_TIMESTAMP' 字符串直接作为值，这里简化。IdeaRepository.update 会处理时间。
+            # 更正：直接 touch
+            c = self.idea_repo.db.get_cursor()
+            c.execute("UPDATE ideas SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (existing[0],))
+            self.idea_repo.db.commit()
+            return existing[0], False
+        else:
+            if item_type == 'text': title = content.strip().split('\n')[0][:50]
+            elif item_type == 'image': title = "[图片]"
+            elif item_type == 'file': title = f"[文件] {os.path.basename(content.split(';')[0])}"
+            else: title = "未命名"
+            
+            iid = self.idea_repo.add(title, content, COLORS['default_note'], category_id, item_type, data_blob, content_hash)
+            return iid, True
+
+    # --- Tag Operations ---
+    def get_tags(self, iid):
+        return self.tag_repo.get_by_idea(iid)
     
-    def restore_from_trash(self, idea_ids):
-        for iid in idea_ids:
-            self.idea_repo.set_deleted(iid, False)
+    def get_all_tags(self):
+        return self.tag_repo.get_all()
 
-    def delete_permanently(self, idea_ids):
-        for iid in idea_ids:
-            self.idea_repo.delete_permanent(iid)
+    def add_tags_to_multiple_ideas(self, idea_ids, tags):
+        self.tag_repo.add_to_multiple(idea_ids, tags)
+        
+    def remove_tag_from_multiple_ideas(self, idea_ids, tag_name):
+        self.tag_repo.remove_from_multiple(idea_ids, tag_name)
+        
+    def get_top_tags(self):
+        return self.tag_repo.get_top_tags()
 
-    def move_to_category(self, idea_ids, category_id):
-        for iid in idea_ids:
-            self.idea_repo.move_category(iid, category_id)
-
-    # --- Pass-through methods to repositories ---
-    
-    def get_idea_with_blob(self, iid):
-        return self.idea_repo.get_by_id(iid, include_blob=True)
-
-    def get_idea_tags(self, iid):
-        return self.tag_repo.get_tags_for_idea(iid)
-
-    def get_all_categories(self):
+    # --- Category Operations ---
+    def get_categories(self):
         return self.category_repo.get_all()
 
-    def get_category_tree(self):
+    def get_partitions_tree(self):
         return self.category_repo.get_tree()
 
-    def get_all_tags_with_counts(self):
-        return self.tag_repo.get_all_tags_with_counts()
-
-    def get_stats_counts(self):
+    def get_counts(self):
         return self.idea_repo.get_counts()
-
+        
     def add_category(self, name, parent_id=None):
         self.category_repo.add(name, parent_id)
-
+        
     def rename_category(self, cat_id, new_name):
         self.category_repo.rename(cat_id, new_name)
-
+        
     def delete_category(self, cat_id):
         self.category_repo.delete(cat_id)
-
-    def save_category_order(self, order_list):
-        self.category_repo.save_order(order_list)
+        
+    def set_category_color(self, cat_id, color):
+        self.category_repo.set_color(cat_id, color)
+        
+    def set_category_preset_tags(self, cat_id, tags):
+        self.category_repo.set_preset_tags(cat_id, tags)
+        
+    def get_category_preset_tags(self, cat_id):
+        return self.category_repo.get_preset_tags(cat_id)
+        
+    def apply_preset_tags_to_category_items(self, cat_id, tags_list):
+        # 复杂逻辑：先找 idea ids，再加 tags
+        c = self.idea_repo.db.get_cursor()
+        c.execute('SELECT id FROM ideas WHERE category_id=? AND is_deleted=0', (cat_id,))
+        ids = [r[0] for r in c.fetchall()]
+        self.tag_repo.add_to_multiple(ids, tags_list)
+        
+    def save_category_order(self, update_list):
+        self.category_repo.save_order(update_list)

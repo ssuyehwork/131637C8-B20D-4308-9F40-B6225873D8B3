@@ -22,9 +22,10 @@ class Sidebar(QTreeWidget):
     data_changed = pyqtSignal()
     new_data_requested = pyqtSignal(int)
 
-    def __init__(self, db, parent=None):
+    # 【核心修改】构造函数接收 service
+    def __init__(self, service, parent=None):
         super().__init__(parent)
-        self.db = db
+        self.db = service # 为了兼容性，变量名暂用 self.db，但实际上是 service
         self.setHeaderHidden(True)
         self.setIndentation(15)
         
@@ -34,7 +35,6 @@ class Sidebar(QTreeWidget):
         self.setDropIndicatorShown(True)
         self.setDragDropMode(self.InternalMove)
 
-        # 稍微调整 CSS，让图标和文字更协调
         self.setStyleSheet(f"""
             QTreeWidget {{
                 background-color: {COLORS['bg_mid']};
@@ -45,7 +45,7 @@ class Sidebar(QTreeWidget):
                 outline: none;
             }}
             QTreeWidget::item {{
-                height: 28px; /* 增加高度，给图标留呼吸空间 */
+                height: 28px;
                 padding: 1px 4px;
                 border-radius: 6px;
                 margin-bottom: 2px;
@@ -57,7 +57,6 @@ class Sidebar(QTreeWidget):
                 background-color: #37373d;
                 color: white;
             }}
-            /* 滚动条样式保持不变 */
             QScrollBar:vertical {{ border: none; background: transparent; width: 6px; margin: 0px; }}
             QScrollBar::handle:vertical {{ background: #444; border-radius: 3px; min-height: 20px; }}
             QScrollBar::handle:vertical:hover {{ background: #555; }}
@@ -84,7 +83,6 @@ class Sidebar(QTreeWidget):
             self.setColumnCount(1)
             counts = self.db.get_counts()
 
-            # 系统菜单列表
             system_menu_items = [
                 ("全部数据", 'all', 'all_data.svg'),
                 ("今日数据", 'today', 'today.svg'),
@@ -98,10 +96,9 @@ class Sidebar(QTreeWidget):
                 item = QTreeWidgetItem(self, [f"{name} ({counts.get(key, 0)})"])
                 item.setIcon(0, create_svg_icon(icon_filename))
                 item.setData(0, Qt.UserRole, (key, None))
-                item.setFlags(item.flags() & ~Qt.ItemIsDragEnabled) # 禁止拖拽系统图标
+                item.setFlags(item.flags() & ~Qt.ItemIsDragEnabled) 
                 item.setExpanded(False)
 
-            # 分割线
             sep_item = QTreeWidgetItem(self)
             sep_item.setFlags(Qt.NoItemFlags)
             sep_item.setSizeHint(0, QSize(0, 16)) 
@@ -116,7 +113,6 @@ class Sidebar(QTreeWidget):
             layout.addWidget(line)
             self.setItemWidget(sep_item, 0, container)
 
-            # 用户分区
             user_partitions_root = QTreeWidgetItem(self, ["🗃️ 我的分区"])
             user_partitions_root.setFlags(user_partitions_root.flags() & ~Qt.ItemIsSelectable & ~Qt.ItemIsDragEnabled)
             font = user_partitions_root.font(0)
@@ -136,7 +132,6 @@ class Sidebar(QTreeWidget):
         pixmap.fill(Qt.transparent)
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.Antialiasing)
-        
         c = QColor(color_str if color_str else "#808080")
         painter.setBrush(c)
         painter.setPen(Qt.NoPen)
@@ -245,7 +240,6 @@ class Sidebar(QTreeWidget):
         data = item.data(0, Qt.UserRole)
         if not data: return
 
-        # 回收站右键菜单
         if data[0] == 'trash':
             menu.addAction('🗑️ 清空回收站', self._empty_trash)
             menu.exec_(self.mapToGlobal(pos))
@@ -337,17 +331,10 @@ class Sidebar(QTreeWidget):
         g = random.randint(0, 255)
         b = random.randint(0, 255)
         color = QColor(r, g, b)
-        
-        # 确保颜色不会太暗
         while color.lightness() < 80:
-            r = random.randint(0, 255)
-            g = random.randint(0, 255)
-            b = random.randint(0, 255)
+            r = random.randint(0, 255); g = random.randint(0, 255); b = random.randint(0, 255)
             color = QColor(r, g, b)
-            
-        color_name = color.name()
-        self.db.set_category_color(cat_id, color_name)
-        
+        self.db.set_category_color(cat_id, color.name())
         self.refresh()
         self.data_changed.emit()
 
@@ -373,7 +360,7 @@ class Sidebar(QTreeWidget):
             self.refresh()
 
     def _del_category(self, cid):
-        c = self.db.conn.cursor()
+        c = self.db.conn.cursor() # 访问 service.conn
         c.execute("SELECT COUNT(*) FROM categories WHERE parent_id = ?", (cid,))
         child_count = c.fetchone()[0]
 

@@ -8,18 +8,14 @@ from core.settings import load_setting
 from ui.utils import create_svg_icon
 
 class CommonTags(QWidget):
-    """
-    嵌入式常用标签栏 (智能版)
-    - 读取用户自定义的顺序和显隐设置
-    - 遵守数量限制
-    """
-    tag_clicked = pyqtSignal(str) # 点击某个标签
-    manager_requested = pyqtSignal()   # 点击编辑按钮
-    refresh_requested = pyqtSignal()   # 请求刷新尺寸
+    tag_clicked = pyqtSignal(str) 
+    manager_requested = pyqtSignal()
+    refresh_requested = pyqtSignal() 
 
-    def __init__(self, db_manager, parent=None):
+    # 【核心修改】构造函数接收 service
+    def __init__(self, service, parent=None):
         super().__init__(parent)
-        self.db_manager = db_manager
+        self.service = service
         self._init_ui()
         self.reload_tags()
 
@@ -58,7 +54,6 @@ class CommonTags(QWidget):
             
             is_active = name in active_tags
             
-            # 根据是否激活设置不同样式
             if is_active:
                 style = f"""
                     QPushButton {{
@@ -68,7 +63,7 @@ class CommonTags(QWidget):
                         border-radius: 10px; padding: 2px 8px; font-size: 11px; min-height: 20px; max-width: 80px;
                     }}
                     QPushButton:hover {{
-                        background-color: #D32F2F; border-color: #D32F2F; /* 悬停时变暗红色表示取消 */
+                        background-color: #D32F2F; border-color: #D32F2F;
                     }}
                 """
             else:
@@ -86,26 +81,24 @@ class CommonTags(QWidget):
             btn.clicked.connect(lambda _, n=name: self.tag_clicked.emit(n))
             self.layout.addWidget(btn)
 
-        # 编辑按钮 (始终显示在最后) - 核心修复：替换 Unicode 铅笔为 SVG
         btn_edit = QPushButton()
         btn_edit.setIcon(create_svg_icon("pencil.svg", "#888"))
-        btn_edit.setToolTip("管理常用标签 (排序/显隐/数量)")
+        btn_edit.setToolTip("管理常用标签")
         btn_edit.setCursor(Qt.PointingHandCursor)
         btn_edit.setFixedSize(20, 20)
-        btn_edit.setStyleSheet(f"""
-            QPushButton {{
+        btn_edit.setStyleSheet("""
+            QPushButton {
                 background-color: transparent;
                 border: 1px solid #666;
                 border-radius: 10px;
                 padding: 2px;
-            }}
-            QPushButton:hover {{
+            }
+            QPushButton:hover {
                 background-color: #444;
                 border-color: #888;
-            }}
+            }
         """)
         btn_edit.clicked.connect(self.manager_requested.emit)
         self.layout.addWidget(btn_edit)
         
-        # 通知父级刷新尺寸
         self.refresh_requested.emit()
