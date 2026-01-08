@@ -314,9 +314,10 @@ class MainWindow(QWidget):
         layout.setContentsMargins(10, 0, 10, 0)
         layout.setSpacing(8)
         
-        self.sidebar_toggle_btn = QPushButton("☰")
+        self.sidebar_toggle_btn = QPushButton()
+        self.sidebar_toggle_btn.setIcon(create_svg_icon('win_sidebar.svg', '#aaa'))
         self.sidebar_toggle_btn.setFixedSize(30, 30)
-        self.sidebar_toggle_btn.setStyleSheet("QPushButton { font-size: 16px; color: #AAA; background-color: transparent; border: none; border-radius: 6px; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }")
+        self.sidebar_toggle_btn.setStyleSheet("QPushButton { background-color: transparent; border: none; border-radius: 6px; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }")
         self.sidebar_toggle_btn.clicked.connect(self._toggle_sidebar)
         layout.addWidget(self.sidebar_toggle_btn)
         

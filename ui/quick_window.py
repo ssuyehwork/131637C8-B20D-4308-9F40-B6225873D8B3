@@ -301,18 +301,6 @@ class QuickWindow(QWidget):
         shadow.setColor(QColor(0, 0, 0, 100))
         self.container.setGraphicsEffect(shadow)
         
-        _clear_icon_path = create_clear_button_icon()
-        clear_button_style = f"""
-        QLineEdit::clear-button {{
-            image: url({_clear_icon_path});
-            border: 0;
-            margin-right: 5px;
-        }}
-        QLineEdit::clear-button:hover {{
-            background-color: #444;
-            border-radius: 8px;
-        }}
-        """
         self.setStyleSheet(DARK_STYLESHEET)
         
         self.main_layout = QVBoxLayout(self.container)
@@ -329,32 +317,35 @@ class QuickWindow(QWidget):
         
         title_bar_layout.addStretch()
         
-        self.btn_stay_top = QPushButton("📌", self)
+        self.btn_stay_top = QPushButton(self)
+        self.btn_stay_top.setIcon(create_svg_icon('pin_tilted.svg', '#aaa'))
         self.btn_stay_top.setObjectName("PinButton")
         self.btn_stay_top.setToolTip("保持置顶")
         self.btn_stay_top.setCheckable(True)
         self.btn_stay_top.setFixedSize(32, 32)
         
-        self.btn_toggle_side = QPushButton("👁️", self)
+        self.btn_toggle_side = QPushButton(self)
+        self.btn_toggle_side.setIcon(create_svg_icon('action_eye.svg', '#aaa'))
         self.btn_toggle_side.setObjectName("ToolButton")
         self.btn_toggle_side.setToolTip("显示/隐藏侧边栏")
         self.btn_toggle_side.setFixedSize(32, 32)
         
         self.btn_open_full = QPushButton(self)
+        self.btn_open_full.setIcon(create_svg_icon('win_max.svg', '#aaa'))
         self.btn_open_full.setObjectName("MaxButton")
         self.btn_open_full.setToolTip("切换主程序界面")
-        self.btn_open_full.setIcon(self.style().standardIcon(QStyle.SP_TitleBarMaxButton))
         self.btn_open_full.setFixedSize(32, 32)
         
-        self.btn_minimize = QPushButton("—", self)
+        self.btn_minimize = QPushButton(self)
+        self.btn_minimize.setIcon(create_svg_icon('win_min.svg', '#aaa'))
         self.btn_minimize.setObjectName("MinButton")
         self.btn_minimize.setToolTip("最小化")
         self.btn_minimize.setFixedSize(32, 32)
         
         self.btn_close = QPushButton(self)
+        self.btn_close.setIcon(create_svg_icon('win_close.svg', '#aaa'))
         self.btn_close.setObjectName("CloseButton")
         self.btn_close.setToolTip("关闭")
-        self.btn_close.setIcon(self.style().standardIcon(QStyle.SP_TitleBarCloseButton))
         self.btn_close.setFixedSize(32, 32)
         
         title_bar_layout.addWidget(self.btn_stay_top)
