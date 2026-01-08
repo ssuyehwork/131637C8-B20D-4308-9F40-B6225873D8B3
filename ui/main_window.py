@@ -17,7 +17,7 @@ from ui.dialogs import EditDialog
 from ui.advanced_tag_selector import AdvancedTagSelector
 from ui.components.search_line_edit import SearchLineEdit
 from services.preview_service import PreviewService
-from ui.utils import create_svg_icon
+from ui.utils import create_svg_icon, create_clear_button_icon
 from ui.filter_panel import FilterPanel 
 
 # ==========================================
@@ -329,7 +329,21 @@ class MainWindow(QWidget):
         self.search.setPlaceholderText('🔍 搜索灵感 (双击查看历史)')
         self.search.setFixedWidth(280)
         self.search.setFixedHeight(28)
-        self.search.setStyleSheet(STYLES['input'] + "QLineEdit { border-radius: 14px; padding-right: 25px; } QLineEdit::clear-button { image: url(assets/clear.png); subcontrol-position: right; margin-right: 5px; }")
+
+        _clear_icon_path = create_clear_button_icon()
+        clear_button_style = f"""
+        QLineEdit::clear-button {{
+            image: url({_clear_icon_path});
+            border: 0;
+            margin-right: 5px;
+        }}
+        QLineEdit::clear-button:hover {{
+            background-color: #444;
+            border-radius: 8px;
+        }}
+        """
+        self.search.setStyleSheet(STYLES['input'] + "QLineEdit { border-radius: 14px; padding-right: 25px; }" + clear_button_style)
+
         self.search.textChanged.connect(lambda: self._set_page(1))
         self.search.returnPressed.connect(self._add_search_to_history)
         layout.addWidget(self.search)

@@ -313,7 +313,7 @@ class QuickWindow(QWidget):
             border-radius: 8px;
         }}
         """
-        self.setStyleSheet(DARK_STYLESHEET + clear_button_style)
+        self.setStyleSheet(DARK_STYLESHEET)
         
         self.main_layout = QVBoxLayout(self.container)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
@@ -368,6 +368,22 @@ class QuickWindow(QWidget):
         self.search_box = SearchLineEdit(self)
         self.search_box.setPlaceholderText("🔍 搜索灵感 (双击查看历史)")
         self.search_box.setClearButtonEnabled(True)
+
+        _clear_icon_path = create_clear_button_icon()
+        clear_button_style = f"""
+        QLineEdit::clear-button {{
+            image: url({_clear_icon_path});
+            border: 0;
+            margin-right: 5px;
+        }}
+        QLineEdit::clear-button:hover {{
+            background-color: #444;
+            border-radius: 8px;
+        }}
+        """
+        # Apply the style directly to the search box for better encapsulation
+        self.search_box.setStyleSheet(self.search_box.styleSheet() + clear_button_style)
+
         self.main_layout.addWidget(self.search_box)
         
         content_widget = QWidget()
@@ -451,17 +467,15 @@ class QuickWindow(QWidget):
                 QMenu::icon { position: absolute; left: 6px; top: 6px; }
             """)
             
-            action_preview = menu.addAction("👁️ 预览 (Space)")
-            action_preview.triggered.connect(self._do_preview)
+            menu.addAction(create_svg_icon('action_eye.svg', '#1abc9c'), "预览 (Space)", self._do_preview)
+            menu.addAction(create_svg_icon('action_export.svg', '#1abc9c'), "复制内容", lambda: self._copy_item_content(data))
             menu.addSeparator()
             
-            action_copy = menu.addAction("📋 复制内容")
-            action_copy.triggered.connect(lambda: self._copy_item_content(data))
-            
+            menu.addAction(create_svg_icon('action_edit.svg', '#4a90e2'), "编辑", self._do_edit_selected)
             menu.addSeparator()
-            
-            rating_menu = menu.addMenu(create_svg_icon('star.svg', '#f39c12'), "⭐ 设置星级")
-            from PyQt5.QtWidgets import QActionGroup
+
+            from PyQt5.QtWidgets import QAction, QActionGroup
+            rating_menu = menu.addMenu(create_svg_icon('star.svg', '#f39c12'), "设置星级")
             star_group = QActionGroup(self)
             star_group.setExclusive(True)
             for i in range(1, 6):
@@ -471,31 +485,26 @@ class QuickWindow(QWidget):
                 rating_menu.addAction(action)
                 star_group.addAction(action)
             rating_menu.addSeparator()
-            action_clear_rating = rating_menu.addAction("清除评级")
-            action_clear_rating.triggered.connect(lambda: self._do_set_rating(0))
-            
+            rating_menu.addAction("清除评级").triggered.connect(lambda: self._do_set_rating(0))
+
             if is_locked:
                 menu.addAction(create_svg_icon('lock.svg', COLORS['success']), "解锁", self._do_lock_selected)
             else:
                 menu.addAction(create_svg_icon('lock.svg', '#aaaaaa'), "锁定 (Ctrl+S)", self._do_lock_selected)
-                
+
+            menu.addSeparator()
+
             if is_pinned:
-                action_pin = menu.addAction(create_svg_icon('pin_vertical.svg', '#e74c3c'), "取消置顶")
+                menu.addAction(create_svg_icon('pin_vertical.svg', '#e74c3c'), "取消置顶", self._do_toggle_pin)
             else:
-                action_pin = menu.addAction(create_svg_icon('pin_tilted.svg', '#aaaaaa'), "置顶")
-            action_pin.triggered.connect(self._do_toggle_pin)
+                menu.addAction(create_svg_icon('pin_tilted.svg', '#aaaaaa'), "置顶", self._do_toggle_pin)
             
-            action_fav = menu.addAction(create_svg_icon('bookmark.svg', '#ff6b81'), "取消书签" if is_fav else "添加书签")
-            action_fav.triggered.connect(self._do_toggle_favorite)
-            
-            action_edit = menu.addAction(create_svg_icon('action_edit.svg', '#4a90e2'), "编辑")
-            action_edit.triggered.connect(self._do_edit_selected)
+            menu.addAction(create_svg_icon('bookmark.svg', '#ff6b81'), "取消书签" if is_fav else "添加书签", self._do_toggle_favorite)
             
             menu.addSeparator()
             
             if not is_locked:
-                action_del = menu.addAction(create_svg_icon('action_delete.svg', '#e74c3c'), "删除")
-                action_del.triggered.connect(self._do_delete_selected)
+                menu.addAction(create_svg_icon('action_delete.svg', '#e74c3c'), "删除", self._do_delete_selected)
             else:
                 del_action = menu.addAction(create_svg_icon('action_delete.svg', '#555555'), "删除 (已锁定)")
                 del_action.setEnabled(False)
