@@ -79,7 +79,7 @@ class AppManager(QObject):
             """)
 
             # 使用SVG图标
-            skin_menu = m.addMenu(create_svg_icon('action_eye.svg', '#1abc9c'), "切换外观")
+            skin_menu = m.addMenu(create_svg_icon('monitor.svg', '#1abc9c'), "切换外观")
             a1 = skin_menu.addAction("摩卡·勃艮第"); a1.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_MOCHA))
             a2 = skin_menu.addAction("经典黑金"); a2.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_CLASSIC))
             a3 = skin_menu.addAction("皇家蓝"); a3.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_ROYAL))
@@ -87,13 +87,13 @@ class AppManager(QObject):
             a5 = skin_menu.addAction("摊开手稿"); a5.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_OPEN))
 
             m.addSeparator()
-            m.addAction(create_svg_icon('pencil.svg', '#4a90e2'), '打开快速笔记', self.ball.request_show_quick_window.emit)
-            m.addAction(create_svg_icon('win_sidebar.svg', '#4a90e2'), '打开主界面', self.ball.request_show_main_window.emit)
+            m.addAction(create_svg_icon('quick.svg', '#4a90e2'), '打开快速笔记', self.ball.request_show_quick_window.emit)
+            m.addAction(create_svg_icon('main_window.svg', '#4a90e2'), '打开主界面', self.ball.request_show_main_window.emit)
             m.addAction(create_svg_icon('action_add.svg', '#2ecc71'), '新建灵感', self.main_window.new_idea)
             m.addSeparator()
             m.addAction(create_svg_icon('tag.svg', '#f39c12'), '管理常用标签', self._open_common_tags_manager)
             m.addSeparator()
-            m.addAction(create_svg_icon('win_close.svg', '#e74c3c'), '退出', self.ball.request_quit_app.emit)
+            m.addAction(create_svg_icon('power.svg', '#e74c3c'), '退出', self.ball.request_quit_app.emit)
             m.exec_(e.globalPos())
 
         self.ball.contextMenuEvent = enhanced_context_menu
