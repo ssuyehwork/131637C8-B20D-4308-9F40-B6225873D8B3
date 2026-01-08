@@ -773,15 +773,20 @@ class QuickWindow(QWidget):
             rating = item_tuple['rating'] or 0
             is_locked = "是" if item_tuple['is_locked'] else "否"
             is_pinned = "是" if item_tuple['is_pinned'] else "否"
+            content_preview = (item_tuple['content'] or "")[:300]
+            if len(content_preview) == 300:
+                content_preview += "..."
 
             tooltip_html = f"""
-            <div style='font-family: "Microsoft YaHei", sans-serif; font-size: 13px;'>
+            <div style='font-family: "Microsoft YaHei", sans-serif; font-size: 13px; max-width: 400px;'>
                 <b style='color: #81D4FA;'>分类:</b> {cat_name}<br>
                 <b style='color: #A5D6A7;'>标签:</b> {tags_str}<br>
                 <hr style='border: none; border-top: 1px solid #444; margin: 4px 0;'>
                 <b style='color: #FFCC80;'>星级:</b> {'★' * rating if rating > 0 else '无'}<br>
                 <b style='color: #EF9A9A;'>锁定:</b> {is_locked}<br>
                 <b style='color: #9FA8DA;'>置顶:</b> {is_pinned}
+                <hr style='border: none; border-top: 1px solid #444; margin: 4px 0;'>
+                <div style='color: #cccccc; white-space: pre-wrap;'>{content_preview}</div>
             </div>
             """
             list_item.setToolTip(tooltip_html)
