@@ -384,6 +384,7 @@ class FloatingBall(QWidget):
             self.double_clicked.emit()
 
     def contextMenuEvent(self, e):
+        from .utils import create_svg_icon
         m = QMenu(self)
         # 菜单样式美化
         m.setStyleSheet("""
@@ -394,28 +395,28 @@ class FloatingBall(QWidget):
         """)
         
         # --- 皮肤切换菜单 ---
-        skin_menu = m.addMenu("🎨  切换外观")
+        skin_menu = m.addMenu(create_svg_icon('display.svg'), "切换外观")
         
-        a1 = skin_menu.addAction("☕  摩卡·勃艮第")
+        a1 = skin_menu.addAction(create_svg_icon('coffee.svg'), "摩卡·勃艮第")
         a1.triggered.connect(lambda: self.switch_skin(self.SKIN_MOCHA))
         
-        a2 = skin_menu.addAction("♟️  经典黑金")
+        a2 = skin_menu.addAction(create_svg_icon('grid.svg'),"经典黑金")
         a2.triggered.connect(lambda: self.switch_skin(self.SKIN_CLASSIC))
         
-        a3 = skin_menu.addAction("📘  皇家蓝")
+        a3 = skin_menu.addAction(create_svg_icon('book.svg'),"皇家蓝")
         a3.triggered.connect(lambda: self.switch_skin(self.SKIN_ROYAL))
 
-        a4 = skin_menu.addAction("🍵  抹茶绿")
+        a4 = skin_menu.addAction(create_svg_icon('leaf.svg'),"抹茶绿")
         a4.triggered.connect(lambda: self.switch_skin(self.SKIN_MATCHA))
 
-        a5 = skin_menu.addAction("📖  摊开手稿")
+        a5 = skin_menu.addAction(create_svg_icon('book-open.svg'),"摊开手稿")
         a5.triggered.connect(lambda: self.switch_skin(self.SKIN_OPEN))
         
         m.addSeparator()
-        m.addAction('⚡ 打开快速笔记', self.request_show_quick_window.emit)
-        m.addAction('💻 打开主界面', self.request_show_main_window.emit)
-        m.addAction('➕ 新建灵感', self.mw.new_idea)
+        m.addAction(create_svg_icon('zap.svg'), '打开快速笔记', self.request_show_quick_window.emit)
+        m.addAction(create_svg_icon('monitor.svg'),'打开主界面', self.request_show_main_window.emit)
+        m.addAction(create_svg_icon('action_add.svg'),'新建灵感', self.mw.new_idea)
         m.addSeparator()
-        m.addAction('❌ 退出', self.request_quit_app.emit)
+        m.addAction(create_svg_icon('power.svg'),'退出', self.request_quit_app.emit)
         
         m.exec_(e.globalPos())
