@@ -150,3 +150,39 @@ def create_svg_icon(icon_name, color=None):
     icon = QIcon(pixmap)
     _icon_cache[cache_key] = icon
     return icon
+
+def create_clear_button_icon():
+    """
+    专门为 QLineEdit 的 clearButton 生成一个经典的 '×' 图标,
+    并返回其文件路径, 供 QSS 使用。
+    """
+    import tempfile
+    
+    # 定义一个经典的 '×' SVG
+    svg_data = """
+    <svg viewBox="0 0 24 24" fill="none" stroke="#999999" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+    </svg>
+    """
+    
+    # 检查缓存
+    temp_dir = tempfile.gettempdir()
+    icon_path = os.path.join(temp_dir, "clear_icon.png")
+    
+    if os.path.exists(icon_path):
+        return icon_path.replace("\\", "/") # 确保路径格式正确
+        
+    renderer = QSvgRenderer(QByteArray(svg_data.encode('utf-8')))
+    pixmap = QPixmap(32, 32)
+    pixmap.fill(Qt.transparent)
+    
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.end()
+    
+    pixmap.save(icon_path, "PNG")
+    
+    # 确保 QSS 能正确使用路径
+    return icon_path.replace("\\", "/")
+

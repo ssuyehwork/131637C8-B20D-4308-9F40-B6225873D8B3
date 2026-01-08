@@ -20,9 +20,10 @@ from PyQt5.QtGui import QImage, QColor, QCursor, QPixmap, QPainter, QIcon, QKeyS
 from services.preview_service import PreviewService
 from ui.dialogs import EditDialog
 from ui.advanced_tag_selector import AdvancedTagSelector
+from ui.components.search_line_edit import SearchLineEdit
 from core.config import COLORS
 from core.settings import load_setting, save_setting
-from ui.utils import create_svg_icon
+from ui.utils import create_svg_icon, create_clear_button_icon
 
 if sys.platform == "win32":
     user32 = ctypes.windll.user32
@@ -258,6 +259,7 @@ class QuickWindow(QWidget):
         self.search_timer.timeout.connect(self._update_list)
         
         self.search_box.textChanged.connect(self._on_search_text_changed)
+        self.search_box.returnPressed.connect(self._add_search_to_history)
         self.list_widget.itemActivated.connect(self._on_item_activated)
         
         self.list_widget.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -268,10 +270,6 @@ class QuickWindow(QWidget):
         self.partition_tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.partition_tree.customContextMenuRequested.connect(self._show_partition_context_menu)
         self.partition_tree.order_changed.connect(self._save_partition_order)
-        
-        self.clear_action.triggered.connect(self.search_box.clear)
-        self.search_box.textChanged.connect(lambda text: self.clear_action.setVisible(bool(text)))
-        self.clear_action.setVisible(False)
         
         self.btn_stay_top.clicked.connect(self._toggle_stay_on_top)
         self.btn_toggle_side.clicked.connect(self._toggle_partition_panel)
@@ -319,32 +317,35 @@ class QuickWindow(QWidget):
         
         title_bar_layout.addStretch()
         
-        self.btn_stay_top = QPushButton("📌", self)
+        self.btn_stay_top = QPushButton(self)
+        self.btn_stay_top.setIcon(create_svg_icon('pin_tilted.svg', '#aaa'))
         self.btn_stay_top.setObjectName("PinButton")
         self.btn_stay_top.setToolTip("保持置顶")
         self.btn_stay_top.setCheckable(True)
         self.btn_stay_top.setFixedSize(32, 32)
         
-        self.btn_toggle_side = QPushButton("👁️", self)
+        self.btn_toggle_side = QPushButton(self)
+        self.btn_toggle_side.setIcon(create_svg_icon('action_eye.svg', '#aaa'))
         self.btn_toggle_side.setObjectName("ToolButton")
         self.btn_toggle_side.setToolTip("显示/隐藏侧边栏")
         self.btn_toggle_side.setFixedSize(32, 32)
         
         self.btn_open_full = QPushButton(self)
+        self.btn_open_full.setIcon(create_svg_icon('win_max.svg', '#aaa'))
         self.btn_open_full.setObjectName("MaxButton")
         self.btn_open_full.setToolTip("切换主程序界面")
-        self.btn_open_full.setIcon(self.style().standardIcon(QStyle.SP_TitleBarMaxButton))
         self.btn_open_full.setFixedSize(32, 32)
         
-        self.btn_minimize = QPushButton("—", self)
+        self.btn_minimize = QPushButton(self)
+        self.btn_minimize.setIcon(create_svg_icon('win_min.svg', '#aaa'))
         self.btn_minimize.setObjectName("MinButton")
         self.btn_minimize.setToolTip("最小化")
         self.btn_minimize.setFixedSize(32, 32)
         
         self.btn_close = QPushButton(self)
+        self.btn_close.setIcon(create_svg_icon('win_close.svg', '#aaa'))
         self.btn_close.setObjectName("CloseButton")
         self.btn_close.setToolTip("关闭")
-        self.btn_close.setIcon(self.style().standardIcon(QStyle.SP_TitleBarCloseButton))
         self.btn_close.setFixedSize(32, 32)
         
         title_bar_layout.addWidget(self.btn_stay_top)
@@ -355,11 +356,25 @@ class QuickWindow(QWidget):
         
         self.main_layout.addLayout(title_bar_layout)
         
-        self.search_box = QLineEdit(self)
-        self.search_box.setPlaceholderText("搜索剪贴板历史...")
-        self.clear_action = QAction(self)
-        self.clear_action.setIcon(self.style().standardIcon(QStyle.SP_DialogCloseButton))
-        self.search_box.addAction(self.clear_action, QLineEdit.TrailingPosition)
+        self.search_box = SearchLineEdit(self)
+        self.search_box.setPlaceholderText("🔍 搜索灵感 (双击查看历史)")
+        self.search_box.setClearButtonEnabled(True)
+
+        _clear_icon_path = create_clear_button_icon()
+        clear_button_style = f"""
+        QLineEdit::clear-button {{
+            image: url({_clear_icon_path});
+            border: 0;
+            margin-right: 5px;
+        }}
+        QLineEdit::clear-button:hover {{
+            background-color: #444;
+            border-radius: 8px;
+        }}
+        """
+        # Apply the style directly to the search box for better encapsulation
+        self.search_box.setStyleSheet(self.search_box.styleSheet() + clear_button_style)
+
         self.main_layout.addWidget(self.search_box)
         
         content_widget = QWidget()
@@ -414,6 +429,11 @@ class QuickWindow(QWidget):
         iid = self._get_selected_id()
         if iid: self.preview_service.toggle_preview({iid})
 
+    def _add_search_to_history(self):
+        search_text = self.search_box.text().strip()
+        if search_text:
+            self.search_box.add_history_entry(search_text)
+
     def _show_list_context_menu(self, pos):
         import logging
         try:
@@ -438,17 +458,15 @@ class QuickWindow(QWidget):
                 QMenu::icon { position: absolute; left: 6px; top: 6px; }
             """)
             
-            action_preview = menu.addAction("👁️ 预览 (Space)")
-            action_preview.triggered.connect(self._do_preview)
+            menu.addAction(create_svg_icon('action_eye.svg', '#1abc9c'), "预览 (Space)", self._do_preview)
+            menu.addAction(create_svg_icon('action_export.svg', '#1abc9c'), "复制内容", lambda: self._copy_item_content(data))
             menu.addSeparator()
             
-            action_copy = menu.addAction("📋 复制内容")
-            action_copy.triggered.connect(lambda: self._copy_item_content(data))
-            
+            menu.addAction(create_svg_icon('action_edit.svg', '#4a90e2'), "编辑", self._do_edit_selected)
             menu.addSeparator()
-            
-            rating_menu = menu.addMenu(create_svg_icon('star.svg', '#f39c12'), "⭐ 设置星级")
-            from PyQt5.QtWidgets import QActionGroup
+
+            from PyQt5.QtWidgets import QAction, QActionGroup
+            rating_menu = menu.addMenu(create_svg_icon('star.svg', '#f39c12'), "设置星级")
             star_group = QActionGroup(self)
             star_group.setExclusive(True)
             for i in range(1, 6):
@@ -458,31 +476,26 @@ class QuickWindow(QWidget):
                 rating_menu.addAction(action)
                 star_group.addAction(action)
             rating_menu.addSeparator()
-            action_clear_rating = rating_menu.addAction("清除评级")
-            action_clear_rating.triggered.connect(lambda: self._do_set_rating(0))
-            
+            rating_menu.addAction("清除评级").triggered.connect(lambda: self._do_set_rating(0))
+
             if is_locked:
                 menu.addAction(create_svg_icon('lock.svg', COLORS['success']), "解锁", self._do_lock_selected)
             else:
                 menu.addAction(create_svg_icon('lock.svg', '#aaaaaa'), "锁定 (Ctrl+S)", self._do_lock_selected)
-                
+            
+            menu.addSeparator()
+
             if is_pinned:
-                action_pin = menu.addAction(create_svg_icon('pin_vertical.svg', '#e74c3c'), "取消置顶")
+                menu.addAction(create_svg_icon('pin_vertical.svg', '#e74c3c'), "取消置顶", self._do_toggle_pin)
             else:
-                action_pin = menu.addAction(create_svg_icon('pin_tilted.svg', '#aaaaaa'), "置顶")
-            action_pin.triggered.connect(self._do_toggle_pin)
+                menu.addAction(create_svg_icon('pin_tilted.svg', '#aaaaaa'), "置顶", self._do_toggle_pin)
             
-            action_fav = menu.addAction(create_svg_icon('bookmark.svg', '#ff6b81'), "取消书签" if is_fav else "添加书签")
-            action_fav.triggered.connect(self._do_toggle_favorite)
-            
-            action_edit = menu.addAction(create_svg_icon('action_edit.svg', '#4a90e2'), "编辑")
-            action_edit.triggered.connect(self._do_edit_selected)
+            menu.addAction(create_svg_icon('bookmark.svg', '#ff6b81'), "取消书签" if is_fav else "添加书签", self._do_toggle_favorite)
             
             menu.addSeparator()
             
             if not is_locked:
-                action_del = menu.addAction(create_svg_icon('action_delete.svg', '#e74c3c'), "删除")
-                action_del.triggered.connect(self._do_delete_selected)
+                menu.addAction(create_svg_icon('action_delete.svg', '#e74c3c'), "删除", self._do_delete_selected)
             else:
                 del_action = menu.addAction(create_svg_icon('action_delete.svg', '#555555'), "删除 (已锁定)")
                 del_action.setEnabled(False)
@@ -975,3 +988,4 @@ class QuickWindow(QWidget):
             tags_list = [t.strip() for t in new_tags.split(',') if t.strip()]
             if tags_list: self.db.apply_preset_tags_to_category_items(cat_id, tags_list)
             self.data_changed.emit()
+
