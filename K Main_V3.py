@@ -87,8 +87,8 @@ class AppManager(QObject):
             a5 = skin_menu.addAction("摊开手稿"); a5.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_OPEN))
 
             m.addSeparator()
-            m.addAction(create_svg_icon('quick.svg', '#4a90e2'), '打开快速笔记', self.ball.request_show_quick_window.emit)
-            m.addAction(create_svg_icon('main_window.svg', '#4a90e2'), '打开主界面', self.ball.request_show_main_window.emit)
+            m.addAction(create_svg_icon('pencil.svg', '#4a90e2'), '打开快速笔记', self.ball.request_show_quick_window.emit)
+            m.addAction(create_svg_icon('win_sidebar.svg', '#4a90e2'), '打开主界面', self.ball.request_show_main_window.emit)
             m.addAction(create_svg_icon('action_add.svg', '#2ecc71'), '新建灵感', self.main_window.new_idea)
             m.addSeparator()
             m.addAction(create_svg_icon('tag.svg', '#f39c12'), '管理常用标签', self._open_common_tags_manager)
