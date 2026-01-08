@@ -784,11 +784,11 @@ class QuickWindow(QWidget):
             <div style='font-family: "Microsoft YaHei", sans-serif; font-size: 13px; max-width: 400px;'>
                 <b style='color: #81D4FA;'>分类:</b> {cat_name}<br>
                 <b style='color: #A5D6A7;'>标签:</b> {tags_str}<br>
-                <hr style='border: none; border-top: 1px solid #444; margin: 4px 0;'>
+                <br>
                 <b style='color: #FFCC80;'>星级:</b> {'★' * rating if rating > 0 else '无'}<br>
                 <b style='color: #EF9A9A;'>锁定:</b> {is_locked}<br>
                 <b style='color: #9FA8DA;'>置顶:</b> {is_pinned}
-                <hr style='border: none; border-top: 1px solid #444; margin: 4px 0;'>
+                <br>
                 <div style='color: #cccccc; white-space: pre-wrap;'>{escaped_content}</div>
             </div>
             """
