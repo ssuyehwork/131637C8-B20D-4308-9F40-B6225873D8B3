@@ -271,10 +271,6 @@ class QuickWindow(QWidget):
         self.partition_tree.customContextMenuRequested.connect(self._show_partition_context_menu)
         self.partition_tree.order_changed.connect(self._save_partition_order)
         
-        self.clear_action.triggered.connect(self.search_box.clear)
-        self.search_box.textChanged.connect(lambda text: self.clear_action.setVisible(bool(text)))
-        self.clear_action.setVisible(False)
-        
         self.btn_stay_top.clicked.connect(self._toggle_stay_on_top)
         self.btn_toggle_side.clicked.connect(self._toggle_partition_panel)
         self.btn_open_full.clicked.connect(self.toggle_main_window_requested)
@@ -360,10 +356,7 @@ class QuickWindow(QWidget):
         self.search_box = SearchLineEdit(self)
         self.search_box.setPlaceholderText("🔍 搜索灵感 (双击查看历史)")
         self.search_box.setStyleSheet(DARK_STYLESHEET)
-
-        self.clear_action = QAction(self)
-        self.clear_action.setIcon(self.style().standardIcon(QStyle.SP_DialogCloseButton))
-        self.search_box.addAction(self.clear_action, QLineEdit.TrailingPosition)
+        self.search_box.setClearButtonEnabled(True)
         self.main_layout.addWidget(self.search_box)
         
         content_widget = QWidget()
