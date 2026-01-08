@@ -245,22 +245,23 @@ class IconListItemWidget(QWidget):
             if child.widget():
                 child.widget().deleteLater()
 
-        rating = item_data.get('rating', 0)
+        keys = item_data.keys()
+        rating = item_data['rating'] if 'rating' in keys else 0
         if rating > 0:
             rating_label = QLabel('★' * rating)
             rating_label.setStyleSheet("color: #f39c12; font-size: 14px; font-weight: bold;")
             self.icon_layout.addWidget(rating_label)
 
-        if item_data.get('is_locked'):
+        if 'is_locked' in keys and item_data['is_locked']:
             self.add_icon('lock.svg', COLORS['success'])
-        if item_data.get('is_pinned'):
+        if 'is_pinned' in keys and item_data['is_pinned']:
             self.add_icon('pin_vertical.svg', '#e74c3c')
-        if item_data.get('is_favorite'):
+        if 'is_favorite' in keys and item_data['is_favorite']:
             self.add_icon('bookmark.svg', '#ff6b81')
 
         title = item_data['title']
         content = item_data['content']
-        item_type = item_data.get('item_type', 'text')
+        item_type = item_data['item_type'] if 'item_type' in keys else 'text'
         text_part = title if item_type in ['image', 'file'] else (title if title else (content if content else ""))
         text_part = text_part.replace('\n', ' ').replace('\r', '').strip()[:150]
         self.text_label.setText(text_part)
