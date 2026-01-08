@@ -214,6 +214,57 @@ class ClickableLineEdit(QLineEdit):
         self.doubleClicked.emit()
         super().mouseDoubleClickEvent(event)
 
+class IconListItemWidget(QWidget):
+    def __init__(self, item_data, parent=None):
+        super().__init__(parent)
+        self.main_layout = QHBoxLayout(self)
+        self.main_layout.setContentsMargins(5, 5, 5, 5)
+        self.main_layout.setSpacing(8)
+
+        # Icon layout
+        self.icon_layout = QHBoxLayout()
+        self.icon_layout.setContentsMargins(0, 0, 0, 0)
+        self.icon_layout.setSpacing(4)
+        self.main_layout.addLayout(self.icon_layout)
+
+        # Text label
+        self.text_label = QLabel()
+        self.text_label.setWordWrap(True)
+        self.main_layout.addWidget(self.text_label, 1)
+
+        self.update_data(item_data)
+
+    def add_icon(self, icon_name, color):
+        icon_label = QLabel()
+        icon_label.setPixmap(create_svg_icon(icon_name, color).pixmap(16, 16))
+        self.icon_layout.addWidget(icon_label)
+
+    def update_data(self, item_data):
+        while self.icon_layout.count():
+            child = self.icon_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        rating = item_data.get('rating', 0)
+        if rating > 0:
+            rating_label = QLabel('★' * rating)
+            rating_label.setStyleSheet("color: #f39c12; font-size: 14px; font-weight: bold;")
+            self.icon_layout.addWidget(rating_label)
+
+        if item_data.get('is_locked'):
+            self.add_icon('lock.svg', COLORS['success'])
+        if item_data.get('is_pinned'):
+            self.add_icon('pin_vertical.svg', '#e74c3c')
+        if item_data.get('is_favorite'):
+            self.add_icon('bookmark.svg', '#ff6b81')
+
+        title = item_data['title']
+        content = item_data['content']
+        item_type = item_data.get('item_type', 'text')
+        text_part = title if item_type in ['image', 'file'] else (title if title else (content if content else ""))
+        text_part = text_part.replace('\n', ' ').replace('\r', '').strip()[:150]
+        self.text_label.setText(text_part)
+
 class QuickWindow(QWidget):
     RESIZE_MARGIN = 18 
     toggle_main_window_requested = pyqtSignal()
@@ -311,7 +362,7 @@ class QuickWindow(QWidget):
         title_bar_layout.setContentsMargins(0, 0, 0, 0)
         title_bar_layout.setSpacing(5)
         
-        self.title_label = QLabel("⚡️ 快速笔记")
+        self.title_label = QLabel("快速笔记")
         self.title_label.setObjectName("TitleLabel")
         title_bar_layout.addWidget(self.title_label)
         
@@ -512,7 +563,9 @@ class QuickWindow(QWidget):
             new_data = self.db.get_idea(idea_id)
             if new_data:
                 item.setData(Qt.UserRole, new_data)
-                item.setText(self._get_content_display(new_data))
+                widget = self.list_widget.itemWidget(item)
+                if isinstance(widget, IconListItemWidget):
+                    widget.update_data(new_data)
 
     def _copy_item_content(self, data):
         item_type = data['item_type'] or 'text'
@@ -537,7 +590,9 @@ class QuickWindow(QWidget):
         new_data = self.db.get_idea(iid)
         if new_data:
             item.setData(Qt.UserRole, new_data)
-            item.setText(self._get_content_display(new_data))
+            widget = self.list_widget.itemWidget(item)
+            if isinstance(widget, IconListItemWidget):
+                widget.update_data(new_data)
     
     def _do_edit_selected(self):
         iid = self._get_selected_id()
@@ -569,7 +624,9 @@ class QuickWindow(QWidget):
             new_data = self.db.get_idea(iid)
             if new_data:
                 item.setData(Qt.UserRole, new_data)
-                item.setText(self._get_content_display(new_data))
+                widget = self.list_widget.itemWidget(item)
+                if isinstance(widget, IconListItemWidget):
+                    widget.update_data(new_data)
 
     def _do_toggle_pin(self):
         iid = self._get_selected_id()
@@ -747,38 +804,19 @@ class QuickWindow(QWidget):
             list_item = QListWidgetItem()
             list_item.setData(Qt.UserRole, item_tuple)
             
-            item_type = item_tuple['item_type'] or 'text'
-            if item_type == 'image':
-                blob_data = item_tuple['data_blob']
-                if blob_data:
-                    pixmap = QPixmap(); pixmap.loadFromData(blob_data)
-                    if not pixmap.isNull(): list_item.setIcon(QIcon(pixmap))
-            
-            display_text = self._get_content_display(item_tuple)
-            list_item.setText(display_text)
+            # Create and set the custom widget for the list item
+            item_widget = IconListItemWidget(item_tuple)
+            list_item.setSizeHint(item_widget.sizeHint())
+            self.list_widget.addItem(list_item)
+            self.list_widget.setItemWidget(list_item, item_widget)
             
             idea_id = item_tuple['id']; category_id = item_tuple['category_id']
             cat_name = categories.get(category_id, "未分类")
             tags = self.db.get_tags(idea_id); tags_str = " ".join([f"#{t}" for t in tags]) if tags else "无"
             
             list_item.setToolTip(f"📂 分区: {cat_name}\n🏷️ 标签: {tags_str}")
-            self.list_widget.addItem(list_item)
             
         if self.list_widget.count() > 0: self.list_widget.setCurrentRow(0)
-
-    def _get_content_display(self, item_tuple):
-        title = item_tuple['title']; content = item_tuple['content']; prefix = ""
-        rating = item_tuple['rating'] or 0
-        
-        if rating > 0: prefix += f"{'★'*rating} "
-        if item_tuple['is_locked']: prefix += "🔒 "
-        if item_tuple['is_pinned']: prefix += "📌 "
-        if item_tuple['is_favorite']: prefix += "🔖 "
-        
-        item_type = item_tuple['item_type'] or 'text'
-        text_part = title if item_type in ['image', 'file'] else (title if title else (content if content else ""))
-        text_part = text_part.replace('\n', ' ').replace('\r', '').strip()[:150]
-        return prefix + text_part
 
     def _create_color_icon(self, color_str):
         pixmap = QPixmap(16, 16); pixmap.fill(Qt.transparent); painter = QPainter(pixmap)
