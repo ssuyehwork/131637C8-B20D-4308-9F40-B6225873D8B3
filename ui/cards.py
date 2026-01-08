@@ -124,10 +124,13 @@ class IdeaCard(QFrame):
             self.lock_icon.hide()
 
         if is_pinned:
-            self.pin_icon.setPixmap(create_svg_icon("action_pin.svg", "#cccccc").pixmap(14, 14))
+            # 置顶: 红色实心图标
+            self.pin_icon.setPixmap(create_svg_icon("action_pin_filled.svg", COLORS['danger']).pixmap(14, 14))
             self.pin_icon.show()
         else:
-            self.pin_icon.hide()
+            # 未置顶: 灰色空心图标 (在深色主题上更柔和)
+            self.pin_icon.setPixmap(create_svg_icon("action_pin.svg", "#777777").pixmap(14, 14))
+            self.pin_icon.show()
 
         if is_favorite:
             self.fav_icon.setPixmap(create_svg_icon("bookmark.svg", "#ff6b81").pixmap(14, 14))
