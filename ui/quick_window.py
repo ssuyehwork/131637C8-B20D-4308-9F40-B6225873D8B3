@@ -6,6 +6,7 @@ import os
 import ctypes
 from ctypes import wintypes
 import time
+import html
 import datetime
 import subprocess
 
@@ -206,6 +207,15 @@ QScrollBar::handle:vertical { background: #444; border-radius: 3px; min-height: 
 QScrollBar::handle:vertical:hover { background: #555; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }
+
+QToolTip {
+    background-color: #2b2b2b;
+    color: #dddddd;
+    border: 1px solid #444444;
+    border-radius: 4px;
+    padding: 6px;
+    opacity: 230;
+}
 """
 
 class ClickableLineEdit(QLineEdit):
@@ -780,26 +790,40 @@ class QuickWindow(QWidget):
             
             idea_id = item_tuple['id']; category_id = item_tuple['category_id']
             cat_name = categories.get(category_id, "未分类")
-            tags = self.db.get_tags(idea_id); tags_str = " ".join([f"#{t}" for t in tags]) if tags else "无"
+            tags = self.db.get_tags(idea_id); tags_str = ", ".join(tags) if tags else "无"
+
+            rating = item_tuple['rating'] or 0
+            is_locked = "是" if item_tuple['is_locked'] else "否"
+            is_pinned = "是" if item_tuple['is_pinned'] else "否"
+            content_preview = (item_tuple['content'] or "")[:300]
+            if len(content_preview) == 300:
+                content_preview += "..."
             
-            list_item.setToolTip(f"📂 分区: {cat_name}\n🏷️ 标签: {tags_str}")
+            escaped_content = html.escape(content_preview)
+
+            tooltip_html = f"""
+            <div style='font-family: "Microsoft YaHei", sans-serif; font-size: 13px; max-width: 400px;'>
+                <b style='color: #81D4FA;'>分类:</b> {cat_name}<br>
+                <b style='color: #A5D6A7;'>标签:</b> {tags_str}<br>
+                <br>
+                <b style='color: #FFCC80;'>星级:</b> {'★' * rating if rating > 0 else '无'}<br>
+                <b style='color: #EF9A9A;'>锁定:</b> {is_locked}<br>
+                <b style='color: #9FA8DA;'>置顶:</b> {is_pinned}
+                <br>
+                <div style='color: #cccccc; white-space: pre-wrap;'>{escaped_content}</div>
+            </div>
+            """
+            list_item.setToolTip(tooltip_html)
             self.list_widget.addItem(list_item)
             
         if self.list_widget.count() > 0: self.list_widget.setCurrentRow(0)
 
     def _get_content_display(self, item_tuple):
-        title = item_tuple['title']; content = item_tuple['content']; prefix = ""
-        rating = item_tuple['rating'] or 0
-
-        if rating > 0: prefix += f"{'★'*rating} "
-        if item_tuple['is_locked']: prefix += "🔒 "
-        if item_tuple['is_pinned']: prefix += "📌 "
-        if item_tuple['is_favorite']: prefix += "🔖 "
-
+        title = item_tuple['title']; content = item_tuple['content']
         item_type = item_tuple['item_type'] or 'text'
         text_part = title if item_type in ['image', 'file'] else (title if title else (content if content else ""))
         text_part = text_part.replace('\n', ' ').replace('\r', '').strip()[:150]
-        return prefix + text_part
+        return text_part
 
     def _create_color_icon(self, color_str):
         pixmap = QPixmap(16, 16); pixmap.fill(Qt.transparent); painter = QPainter(pixmap)

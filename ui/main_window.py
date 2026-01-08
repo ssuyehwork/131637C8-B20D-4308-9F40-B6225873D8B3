@@ -818,25 +818,29 @@ class MainWindow(QWidget):
             self._load_data()
 
     def _do_fav(self):
-        if self.selected_ids:
-            any_not_favorited = False
-            for iid in self.selected_ids:
-                data = self.service.get_idea(iid)
-                if data and not data['is_favorite']:
-                    any_not_favorited = True
-                    break
-            target_state = True if any_not_favorited else False
-            for iid in self.selected_ids:
-                self.service.set_favorite(iid, target_state)
-            
-            for iid in self.selected_ids:
-                card = self.card_list_view.get_card(iid)
-                if card:
-                    new_data = self.service.get_idea(iid, include_blob=True)
-                    if new_data: card.update_data(new_data)
-            
-            self._update_ui_state()
-            self.sidebar.refresh()
+        if not self.selected_ids:
+            return
+
+        # 检查是否至少有一个未被收藏，以此决定是全部设为书签还是全部取消
+        is_adding = any(
+            not (idea := self.service.get_idea(iid)) or not idea['is_favorite']
+            for iid in self.selected_ids
+        )
+
+        # 在一个事务中更新所有idea的状态
+        for iid in self.selected_ids:
+            self.service.set_favorite(iid, is_adding)
+
+        # 批量刷新UI
+        for iid in self.selected_ids:
+            card = self.card_list_view.get_card(iid)
+            if card:
+                new_data = self.service.get_idea(iid, include_blob=True)
+                if new_data:
+                    card.update_data(new_data)
+
+        self._update_ui_state()
+        self.sidebar.refresh()
 
     def _do_del(self):
         if self.selected_ids:

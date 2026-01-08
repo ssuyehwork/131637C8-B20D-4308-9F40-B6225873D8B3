@@ -61,30 +61,39 @@ class AppManager(QObject):
         self.ball = FloatingBall(self.main_window)
         
         # 悬浮球菜单逻辑
+        # 导入 create_svg_icon
+        from ui.utils import create_svg_icon
+
         original_context_menu = self.ball.contextMenuEvent
         def enhanced_context_menu(e):
             m = QMenu(self.ball)
             m.setStyleSheet("""
-                QMenu { background-color: #2b2b2b; color: #f0f0f0; border: 1px solid #444; border-radius: 5px; }
-                QMenu::item { padding: 6px 25px; }
-                QMenu::item:selected { background-color: #5D4037; color: #fff; }
+                QMenu {
+                    background-color: #2b2b2b; color: #f0f0f0; border: 1px solid #444;
+                    border-radius: 5px; padding: 4px;
+                }
+                QMenu::item { padding: 6px 10px 6px 28px; border-radius: 4px; }
+                QMenu::item:selected { background-color: #4a90e2; }
                 QMenu::separator { background-color: #444; height: 1px; margin: 4px 0; }
+                QMenu::icon { position: absolute; left: 8px; }
             """)
-            skin_menu = m.addMenu("🎨  切换外观")
-            a1 = skin_menu.addAction("☕  摩卡·勃艮第"); a1.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_MOCHA))
-            a2 = skin_menu.addAction("♟️  经典黑金"); a2.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_CLASSIC))
-            a3 = skin_menu.addAction("📘  皇家蓝"); a3.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_ROYAL))
-            a4 = skin_menu.addAction("🍵  抹茶绿"); a4.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_MATCHA))
-            a5 = skin_menu.addAction("📖  摊开手稿"); a5.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_OPEN))
+
+            # 使用SVG图标
+            skin_menu = m.addMenu(create_svg_icon('action_eye.svg', '#1abc9c'), "切换外观")
+            a1 = skin_menu.addAction("摩卡·勃艮第"); a1.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_MOCHA))
+            a2 = skin_menu.addAction("经典黑金"); a2.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_CLASSIC))
+            a3 = skin_menu.addAction("皇家蓝"); a3.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_ROYAL))
+            a4 = skin_menu.addAction("抹茶绿"); a4.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_MATCHA))
+            a5 = skin_menu.addAction("摊开手稿"); a5.triggered.connect(lambda: self.ball.switch_skin(self.ball.SKIN_OPEN))
 
             m.addSeparator()
-            m.addAction('⚡ 打开快速笔记', self.ball.request_show_quick_window.emit)
-            m.addAction('💻 打开主界面', self.ball.request_show_main_window.emit)
-            m.addAction('➕ 新建灵感', self.main_window.new_idea)
+            m.addAction(create_svg_icon('quick.svg', '#4a90e2'), '打开快速笔记', self.ball.request_show_quick_window.emit)
+            m.addAction(create_svg_icon('main_window.svg', '#4a90e2'), '打开主界面', self.ball.request_show_main_window.emit)
+            m.addAction(create_svg_icon('action_add.svg', '#2ecc71'), '新建灵感', self.main_window.new_idea)
             m.addSeparator()
-            m.addAction('🏷️ 管理常用标签', self._open_common_tags_manager)
+            m.addAction(create_svg_icon('tag.svg', '#f39c12'), '管理常用标签', self._open_common_tags_manager)
             m.addSeparator()
-            m.addAction('❌ 退出', self.ball.request_quit_app.emit)
+            m.addAction(create_svg_icon('win_close.svg', '#e74c3c'), '退出', self.ball.request_quit_app.emit)
             m.exec_(e.globalPos())
 
         self.ball.contextMenuEvent = enhanced_context_menu
