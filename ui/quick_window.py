@@ -6,6 +6,7 @@ import os
 import ctypes
 from ctypes import wintypes
 import time
+import html
 import datetime
 import subprocess
 
@@ -777,6 +778,8 @@ class QuickWindow(QWidget):
             if len(content_preview) == 300:
                 content_preview += "..."
 
+            escaped_content = html.escape(content_preview)
+
             tooltip_html = f"""
             <div style='font-family: "Microsoft YaHei", sans-serif; font-size: 13px; max-width: 400px;'>
                 <b style='color: #81D4FA;'>分类:</b> {cat_name}<br>
@@ -786,7 +789,7 @@ class QuickWindow(QWidget):
                 <b style='color: #EF9A9A;'>锁定:</b> {is_locked}<br>
                 <b style='color: #9FA8DA;'>置顶:</b> {is_pinned}
                 <hr style='border: none; border-top: 1px solid #444; margin: 4px 0;'>
-                <div style='color: #cccccc; white-space: pre-wrap;'>{content_preview}</div>
+                <div style='color: #cccccc; white-space: pre-wrap;'>{escaped_content}</div>
             </div>
             """
             list_item.setToolTip(tooltip_html)
