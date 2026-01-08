@@ -23,7 +23,7 @@ from ui.advanced_tag_selector import AdvancedTagSelector
 from ui.components.search_line_edit import SearchLineEdit
 from core.config import COLORS
 from core.settings import load_setting, save_setting
-from ui.utils import create_svg_icon
+from ui.utils import create_svg_icon, create_clear_button_icon
 
 if sys.platform == "win32":
     user32 = ctypes.windll.user32
@@ -301,7 +301,19 @@ class QuickWindow(QWidget):
         shadow.setColor(QColor(0, 0, 0, 100))
         self.container.setGraphicsEffect(shadow)
         
-        self.setStyleSheet(DARK_STYLESHEET)
+        _clear_icon_path = create_clear_button_icon()
+        clear_button_style = f"""
+        QLineEdit::clear-button {{
+            image: url({_clear_icon_path});
+            border: 0;
+            margin-right: 5px;
+        }}
+        QLineEdit::clear-button:hover {{
+            background-color: #444;
+            border-radius: 8px;
+        }}
+        """
+        self.setStyleSheet(DARK_STYLESHEET + clear_button_style)
         
         self.main_layout = QVBoxLayout(self.container)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
@@ -355,7 +367,6 @@ class QuickWindow(QWidget):
         
         self.search_box = SearchLineEdit(self)
         self.search_box.setPlaceholderText("🔍 搜索灵感 (双击查看历史)")
-        self.search_box.setStyleSheet(DARK_STYLESHEET)
         self.search_box.setClearButtonEnabled(True)
         self.main_layout.addWidget(self.search_box)
         
