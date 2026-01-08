@@ -3,8 +3,9 @@ import sys
 import time
 import logging
 import traceback
+import keyboard
 from PyQt5.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QDialog
-from PyQt5.QtCore import QObject, Qt
+from PyQt5.QtCore import QObject, Qt, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtNetwork import QLocalServer, QLocalSocket
 
@@ -28,6 +29,10 @@ def excepthook(exc_type, exc_value, exc_tb):
 sys.excepthook = excepthook
 # --- End Logging Setup ---
 
+# 用于在主线程中接收全局热键信号
+class HotkeySignal(QObject):
+    activated = pyqtSignal()
+
 class AppManager(QObject):
     def __init__(self, app):
         super().__init__()
@@ -43,10 +48,14 @@ class AppManager(QObject):
         self.popup = None 
         self.tray_icon = None
         self.tags_manager_dialog = None
+        
+        # 全局热键信号
+        self.hotkey_signal = HotkeySignal()
+        self.hotkey_signal.activated.connect(self.toggle_quick_window)
 
     def start(self):
         # 2. 注入 Service 到 UI 组件
-        self.main_window = MainWindow(self.service) # 注入！
+        self.main_window = MainWindow(self.service) 
         self.main_window.closing.connect(self.on_main_window_closing)
 
         self.ball = FloatingBall(self.main_window)
@@ -92,10 +101,10 @@ class AppManager(QObject):
             self.ball.move(g.width()-80, g.height()//2)
         self.ball.show()
 
-        self.quick_window = QuickWindow(self.service) # 注入！
+        self.quick_window = QuickWindow(self.service) 
         self.quick_window.toggle_main_window_requested.connect(self.toggle_main_window)
         
-        self.popup = ActionPopup(self.service) # 注入！
+        self.popup = ActionPopup(self.service) 
         self.popup.request_favorite.connect(self._handle_popup_favorite)
         self.popup.request_tag_toggle.connect(self._handle_popup_tag_toggle)
         self.popup.request_manager.connect(self._open_common_tags_manager)
@@ -103,7 +112,17 @@ class AppManager(QObject):
         self.quick_window.cm.data_captured.connect(self._on_clipboard_data_captured)
         
         self._init_tray_icon()
+        
+        # 注册全局热键 Alt+Space
+        try:
+            keyboard.add_hotkey('alt+space', self._on_hotkey_triggered, suppress=False)
+        except Exception as e:
+            logging.error(f"Failed to register hotkey: {e}")
+
         self.show_quick_window()
+
+    def _on_hotkey_triggered(self):
+        self.hotkey_signal.activated.emit()
 
     def _init_tray_icon(self):
         temp_ball = FloatingBall(None)
@@ -181,6 +200,9 @@ class AppManager(QObject):
     def on_main_window_closing(self):
         if self.main_window: self.main_window.hide()
     def quit_application(self):
+        try:
+            keyboard.unhook_all()
+        except: pass
         if self.quick_window:
             try: self.quick_window.save_state()
             except: pass

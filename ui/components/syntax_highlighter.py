@@ -1,55 +1,68 @@
 # -*- coding: utf-8 -*-
 # ui/components/syntax_highlighter.py
 
+import re
 from PyQt5.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFont
-from PyQt5.QtCore import QRegExp
 
-class SimpleHighlighter(QSyntaxHighlighter):
+class MarkdownHighlighter(QSyntaxHighlighter):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.highlightingRules = []
+        self.rules = []
 
-        # 1. 关键词 (蓝色)
-        keywordFormat = QTextCharFormat()
-        keywordFormat.setForeground(QColor("#569CD6")) 
-        keywordFormat.setFontWeight(QFont.Bold)
-        keywords = [
-            "def", "class", "if", "else", "elif", "try", "except", "return", 
-            "import", "from", "while", "for", "in", "True", "False", "None", 
-            "and", "or", "not", "lambda", "with", "as", "pass", "break",
-            "print", "range", "len", "self", "super"
-        ]
-        for word in keywords:
-            pattern = QRegExp(r"\b" + word + r"\b")
-            self.highlightingRules.append((pattern, keywordFormat))
+        # --- 1. 标题 (Headers) ---
+        # 匹配 # 开头，蓝色，加粗
+        headerFormat = QTextCharFormat()
+        headerFormat.setForeground(QColor("#569CD6")) 
+        headerFormat.setFontWeight(QFont.Bold)
+        self.rules.append((re.compile(r"^#{1,6}\s.*"), headerFormat))
 
-        # 2. 字符串 (橙红色)
-        stringFormat = QTextCharFormat()
-        stringFormat.setForeground(QColor("#CE9178"))
-        self.highlightingRules.append((QRegExp(r"\".*\""), stringFormat))
-        self.highlightingRules.append((QRegExp(r"'.*'"), stringFormat))
+        # --- 2. 粗体 (**bold**) ---
+        # 匹配 **中间的内容**，红色，加粗
+        boldFormat = QTextCharFormat()
+        boldFormat.setFontWeight(QFont.Bold)
+        boldFormat.setForeground(QColor("#E06C75")) 
+        self.rules.append((re.compile(r"\*\*.*?\*\*"), boldFormat))
 
-        # 3. 注释 (绿色)
-        commentFormat = QTextCharFormat()
-        commentFormat.setForeground(QColor("#6A9955"))
-        self.highlightingRules.append((QRegExp(r"#[^\n]*"), commentFormat))
-        self.highlightingRules.append((QRegExp(r"//[^\n]*"), commentFormat))
+        # --- 3. 待办事项 ([ ] [x]) ---
+        # 未完成，黄色
+        uncheckedFormat = QTextCharFormat()
+        uncheckedFormat.setForeground(QColor("#E5C07B")) 
+        self.rules.append((re.compile(r"-\s\[\s\]"), uncheckedFormat))
         
-        # 4. 数字 (浅绿色)
-        numberFormat = QTextCharFormat()
-        numberFormat.setForeground(QColor("#B5CEA8"))
-        self.highlightingRules.append((QRegExp(r"\b[0-9]+\b"), numberFormat))
+        # 已完成，绿色
+        checkedFormat = QTextCharFormat()
+        checkedFormat.setForeground(QColor("#6A9955")) 
+        self.rules.append((re.compile(r"-\s\[x\]"), checkedFormat))
+
+        # --- 4. 代码块 (``` ... ```) ---
+        # 绿色，等宽字体
+        codeFormat = QTextCharFormat()
+        codeFormat.setForeground(QColor("#98C379")) 
+        codeFormat.setFontFamily("Consolas") 
+        # 注意：这里处理简单的多行代码块会有局限，但在 QSyntaxHighlighter 中
+        # 使用多行正则比较复杂，这里先确保单行 ``` 和行内 `code` 能亮
+        self.rules.append((re.compile(r"`[^`]+`"), codeFormat)) 
+        self.rules.append((re.compile(r"```.*"), codeFormat)) # 简单的代码块头
+
+        # --- 5. 引用 (> Quote) ---
+        # 灰色，斜体
+        quoteFormat = QTextCharFormat()
+        quoteFormat.setForeground(QColor("#808080")) 
+        quoteFormat.setFontItalic(True)
+        self.rules.append((re.compile(r"^\s*>.*"), quoteFormat))
         
-        # 5. 函数调用 (黄色)
-        functionFormat = QTextCharFormat()
-        functionFormat.setForeground(QColor("#DCDCAA"))
-        self.highlightingRules.append((QRegExp(r"\b[A-Za-z0-9_]+(?=\()"), functionFormat))
+        # --- 6. 列表项 (- item) ---
+        # 紫色
+        listFormat = QTextCharFormat()
+        listFormat.setForeground(QColor("#C678DD")) 
+        self.rules.append((re.compile(r"^\s*[\-\*]\s"), listFormat))
 
     def highlightBlock(self, text):
-        for pattern, format in self.highlightingRules:
-            expression = QRegExp(pattern)
-            index = expression.indexIn(text)
-            while index >= 0:
-                length = expression.matchedLength()
-                self.setFormat(index, length, format)
-                index = expression.indexIn(text, index + length)
+        """
+        使用 Python 的 re 模块进行匹配，速度快且语法支持全。
+        """
+        for pattern, format in self.rules:
+            # 使用 finditer 查找所有匹配项
+            for match in pattern.finditer(text):
+                start, end = match.span()
+                self.setFormat(start, end - start, format)
