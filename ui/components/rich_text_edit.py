@@ -120,7 +120,7 @@ class RichTextEdit(QTextEdit):
                 # 预览样式 CSS
                 css = """
                 <style>
-                    body { font-family: "Microsoft YaHei"; color: #ddd; font-size: 14px; background-color: #1e1e1e; }
+                    body { font-family: "Microsoft YaHei"; color: #ddd; font-size: 14px; background-color: transparent; }
                     code { background-color: #333; padding: 2px 4px; border-radius: 3px; font-family: Consolas; color: #98C379; }
                     pre { background-color: #1e1e1e; padding: 10px; border-radius: 5px; border: 1px solid #444; color: #ccc; }
                     blockquote { border-left: 4px solid #569CD6; padding-left: 10px; color: #888; background: #252526; }

@@ -545,7 +545,7 @@ class PreviewDialog(QDialog):
         text_edit = RichTextEdit()
         text_edit.setPlainText(text_data)
         text_edit.toggle_markdown_preview()
-        text_edit.setStyleSheet("QTextEdit { background-color: transparent; border: none; padding: 15px; color: #ddd; font-size: 14px; }")
+        text_edit.setStyleSheet("QTextEdit { background-color: #1e1e1e; border: none; padding: 15px; color: #ddd; font-size: 14px; }")
         layout.addWidget(text_edit)
 
     def _setup_image_preview(self, layout, image_data):
