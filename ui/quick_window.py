@@ -419,6 +419,9 @@ class QuickWindow(QWidget):
         QShortcut(QKeySequence("Ctrl+P"), self, self._do_toggle_pin)
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
         QShortcut(QKeySequence("Ctrl+S"), self, self._do_lock_selected)
+        QShortcut(QKeySequence("Ctrl+N"), self, self._do_new_idea)
+        QShortcut(QKeySequence("Ctrl+A"), self, self._do_select_all)
+        QShortcut(QKeySequence("Ctrl+T"), self, self._do_extract_content)
         for i in range(6):
             QShortcut(QKeySequence(f"Ctrl+{i}"), self, lambda r=i: self._do_set_rating(r))
         self.space_shortcut = QShortcut(QKeySequence(Qt.Key_Space), self)
@@ -428,6 +431,24 @@ class QuickWindow(QWidget):
     def _do_preview(self):
         iid = self._get_selected_id()
         if iid: self.preview_service.toggle_preview({iid})
+
+    def _do_new_idea(self):
+        dialog = EditDialog(self.db, parent=None)
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        dialog.data_saved.connect(self._update_list)
+        dialog.data_saved.connect(self._update_partition_tree)
+        dialog.show()
+        self.open_dialogs.append(dialog)
+
+    def _do_select_all(self):
+        self.list_widget.selectAll()
+
+    def _do_extract_content(self):
+        item = self.list_widget.currentItem()
+        if item:
+            data = item.data(Qt.UserRole)
+            if data:
+                self._copy_item_content(data)
 
     def _add_search_to_history(self):
         search_text = self.search_box.text().strip()
