@@ -10,6 +10,7 @@ class DatabaseManager:
     def __init__(self):
         self.conn = sqlite3.connect(DB_NAME)
         self.conn.row_factory = sqlite3.Row
+        self.fts5_supported = True  # Assume FTS5 is supported by default
         self._init_schema()
         # 【维护】启动时仅修正回收站数据的格式
         self._fix_trash_consistency()
@@ -66,7 +67,46 @@ class DatabaseManager:
         if 'preset_tags' not in cat_cols:
             try: c.execute('ALTER TABLE categories ADD COLUMN preset_tags TEXT')
             except: pass
+
+        # --- FTS5 Setup ---
+        try:
+            # Check for FTS5 support
+            c.execute("CREATE VIRTUAL TABLE IF NOT EXISTS fts_test USING fts5(a)")
+            c.execute("DROP TABLE fts_test")
+
+            c.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS ideas_fts USING fts5(
+                    title,
+                    content,
+                    content='ideas',
+                    content_rowid='id'
+                )
+            """)
             
+            c.execute("""
+                CREATE TRIGGER IF NOT EXISTS ideas_after_insert AFTER INSERT ON ideas BEGIN
+                    INSERT INTO ideas_fts(rowid, title, content) VALUES (new.id, new.title, new.content);
+                END;
+            """)
+            c.execute("""
+                CREATE TRIGGER IF NOT EXISTS ideas_after_delete AFTER DELETE ON ideas BEGIN
+                    INSERT INTO ideas_fts(ideas_fts, rowid, title, content) VALUES ('delete', old.id, old.title, old.content);
+                END;
+            """)
+            c.execute("""
+                CREATE TRIGGER IF NOT EXISTS ideas_after_update AFTER UPDATE ON ideas BEGIN
+                    INSERT INTO ideas_fts(ideas_fts, rowid, title, content) VALUES ('delete', old.id, old.title, old.content);
+                    INSERT INTO ideas_fts(rowid, title, content) VALUES (new.id, new.title, new.content);
+                END;
+            """)
+        except sqlite3.OperationalError as e:
+            # If FTS5 is not supported, disable it for this session
+            if 'no such module' in str(e).lower() or 'fts5' in str(e).lower():
+                self.fts5_supported = False
+                self.conn.rollback()  # Roll back any partial FTS setup
+            else:
+                raise  # Re-raise other operational errors
+
         self.conn.commit()
 
     def _fix_trash_consistency(self):
@@ -433,8 +473,15 @@ class DatabaseManager:
         elif f_type == 'bookmark': q += ' AND i.is_favorite=1'
         
         if search:
-            q += ' AND (i.title LIKE ? OR i.content LIKE ? OR t.name LIKE ?)'
-            p.extend([f'%{search}%']*3)
+            if self.fts5_supported:
+                # FTS5 search for title/content OR regular search for tag name
+                q += " AND (i.id IN (SELECT rowid FROM ideas_fts WHERE ideas_fts MATCH ?) OR t.name LIKE ?)"
+                p.append(search)
+                p.append(f'%{search}%')
+            else:
+                # Fallback to LIKE search if FTS5 is not available
+                q += ' AND (i.title LIKE ? OR i.content LIKE ? OR t.name LIKE ?)'
+                p.extend([f'%{search}%'] * 3)
 
         if tag_filter:
             q += " AND i.id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = ?))"
@@ -510,8 +557,13 @@ class DatabaseManager:
         elif f_type == 'bookmark': q += ' AND i.is_favorite=1'
         
         if search:
-            q += ' AND (i.title LIKE ? OR i.content LIKE ? OR t.name LIKE ?)'
-            p.extend([f'%{search}%']*3)
+            if self.fts5_supported:
+                q += " AND (i.id IN (SELECT rowid FROM ideas_fts WHERE ideas_fts MATCH ?) OR t.name LIKE ?)"
+                p.append(search)
+                p.append(f'%{search}%')
+            else:
+                q += ' AND (i.title LIKE ? OR i.content LIKE ? OR t.name LIKE ?)'
+                p.extend([f'%{search}%'] * 3)
 
         if tag_filter:
             q += " AND i.id IN (SELECT idea_id FROM idea_tags WHERE tag_id = (SELECT id FROM tags WHERE name = ?))"

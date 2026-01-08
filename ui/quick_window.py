@@ -20,6 +20,7 @@ from PyQt5.QtGui import QImage, QColor, QCursor, QPixmap, QPainter, QIcon, QKeyS
 from services.preview_service import PreviewService
 from ui.dialogs import EditDialog
 from ui.advanced_tag_selector import AdvancedTagSelector
+from ui.components.search_line_edit import SearchLineEdit
 from core.config import COLORS
 from core.settings import load_setting, save_setting
 from ui.utils import create_svg_icon
@@ -258,6 +259,7 @@ class QuickWindow(QWidget):
         self.search_timer.timeout.connect(self._update_list)
         
         self.search_box.textChanged.connect(self._on_search_text_changed)
+        self.search_box.returnPressed.connect(self._add_search_to_history)
         self.list_widget.itemActivated.connect(self._on_item_activated)
         
         self.list_widget.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -355,8 +357,10 @@ class QuickWindow(QWidget):
         
         self.main_layout.addLayout(title_bar_layout)
         
-        self.search_box = QLineEdit(self)
-        self.search_box.setPlaceholderText("搜索剪贴板历史...")
+        self.search_box = SearchLineEdit(self)
+        self.search_box.setPlaceholderText("🔍 搜索灵感 (双击查看历史)")
+        self.search_box.setStyleSheet(DARK_STYLESHEET)
+
         self.clear_action = QAction(self)
         self.clear_action.setIcon(self.style().standardIcon(QStyle.SP_DialogCloseButton))
         self.search_box.addAction(self.clear_action, QLineEdit.TrailingPosition)
@@ -413,6 +417,11 @@ class QuickWindow(QWidget):
     def _do_preview(self):
         iid = self._get_selected_id()
         if iid: self.preview_service.toggle_preview({iid})
+
+    def _add_search_to_history(self):
+        search_text = self.search_box.text().strip()
+        if search_text:
+            self.search_box.add_history_entry(search_text)
 
     def _show_list_context_menu(self, pos):
         import logging
