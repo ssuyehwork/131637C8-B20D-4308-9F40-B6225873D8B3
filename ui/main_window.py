@@ -442,7 +442,7 @@ class MainWindow(QWidget):
         self.toggle_metadata_btn = QPushButton()
         self.toggle_metadata_btn.setCheckable(True)
         self.toggle_metadata_btn.setToolTip("显示/隐藏元数据面板 (Ctrl+I)")
-        self.toggle_metadata_btn.setIcon(create_svg_icon('display.svg', '#aaa'))
+        self.toggle_metadata_btn.setIcon(create_svg_icon('sidebar_right.svg', '#aaa'))
         self.toggle_metadata_btn.setStyleSheet(STYLES['btn_icon'])
         self.toggle_metadata_btn.clicked.connect(self._toggle_metadata_panel)
         act_bar.addWidget(self.toggle_metadata_btn)
