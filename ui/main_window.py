@@ -187,6 +187,7 @@ class MainWindow(QWidget):
         self._resize_start_pos = None
         self._resize_start_geometry = None
         self.is_metadata_panel_visible = False
+        self.is_metadata_panel_pinned = False
         
         self.current_page = 1
         self.page_size = 100
@@ -485,6 +486,21 @@ class MainWindow(QWidget):
         icon = QLabel(); icon.setPixmap(create_svg_icon('all_data.svg', '#4a90e2').pixmap(18, 18)); icon.setStyleSheet("background: transparent; border: none;")
         lbl = QLabel("元数据"); lbl.setStyleSheet("font-size: 14px; font-weight: bold; color: #4a90e2; background: transparent; border: none;")
         title_layout.addWidget(icon); title_layout.addWidget(lbl); title_layout.addStretch()
+
+        self.pin_metadata_btn = QPushButton()
+        self.pin_metadata_btn.setCheckable(True)
+        self.pin_metadata_btn.setToolTip("固定/取消固定元数据面板")
+        self.pin_metadata_btn.setIcon(create_svg_icon('pin_tilted.svg', '#aaa'))
+        self.pin_metadata_btn.setFixedSize(24, 24)
+        btn_style = """
+            QPushButton { background-color: transparent; border: none; border-radius: 4px; }
+            QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }
+            QPushButton:checked { background-color: rgba(74, 144, 226, 0.2); }
+        """
+        self.pin_metadata_btn.setStyleSheet(btn_style)
+        self.pin_metadata_btn.clicked.connect(self._toggle_metadata_pin_state)
+        title_layout.addWidget(self.pin_metadata_btn)
+
         layout.addWidget(title_container)
 
         self.info_stack = QWidget(); self.info_stack.setStyleSheet("background-color: transparent;")
@@ -586,9 +602,9 @@ class MainWindow(QWidget):
     def _refresh_metadata_panel(self):
         num_selected = len(self.selected_ids)
         if num_selected == 0:
-            self.no_selection_widget.show(); self.multi_selection_widget.hide(); self.metadata_display.hide(); self.title_input.hide(); self.tag_input.setEnabled(False); self.tag_input.setPlaceholderText("请先选择一个项目"); self._hide_metadata_panel()
+            self.no_selection_widget.show(); self.multi_selection_widget.hide(); self.metadata_display.hide(); self.title_input.hide(); self.tag_input.setEnabled(False); self.tag_input.setPlaceholderText("请先选择一个项目")
         elif num_selected == 1:
-            self._show_metadata_panel(); self.no_selection_widget.hide(); self.multi_selection_widget.hide(); self.metadata_display.show(); self.title_input.show(); self.tag_input.setEnabled(True); self.tag_input.setPlaceholderText("输入标签添加... (双击更多)")
+            self.no_selection_widget.hide(); self.multi_selection_widget.hide(); self.metadata_display.show(); self.title_input.show(); self.tag_input.setEnabled(True); self.tag_input.setPlaceholderText("输入标签添加... (双击更多)")
             idea_id = list(self.selected_ids)[0]
             data = self.service.get_idea(idea_id)
             if data:
@@ -601,8 +617,8 @@ class MainWindow(QWidget):
                     cat = next((c for c in all_categories if c['id'] == data['category_id']), None)
                     if cat: category_name = cat['name']
                 self.metadata_display.update_data(data, tags, category_name)
-        else:
-            self._hide_metadata_panel(); self.no_selection_widget.hide(); self.multi_selection_widget.show(); self.metadata_display.hide(); self.title_input.hide(); self.tag_input.setEnabled(False); self.tag_input.setPlaceholderText("请仅选择一项以查看元数据")
+        else: # num_selected > 1
+            self.no_selection_widget.hide(); self.multi_selection_widget.show(); self.metadata_display.hide(); self.title_input.hide(); self.tag_input.setEnabled(False); self.tag_input.setPlaceholderText("请仅选择一项以查看元数据")
 
     def _open_expanded_title_editor(self):
         if len(self.selected_ids) != 1: return
@@ -626,6 +642,20 @@ class MainWindow(QWidget):
         
         dialog.btn_save.clicked.connect(on_save)
         dialog.show_at_cursor()
+
+    def _toggle_metadata_pin_state(self):
+        self.is_metadata_panel_pinned = not self.is_metadata_panel_pinned
+
+        if self.is_metadata_panel_pinned:
+            self._show_metadata_panel()
+            self.pin_metadata_btn.setIcon(create_svg_icon('pin_vertical.svg', COLORS['primary']))
+            self.pin_metadata_btn.setChecked(True)
+        else:
+            self._hide_metadata_panel()
+            self.pin_metadata_btn.setIcon(create_svg_icon('pin_tilted.svg', '#aaa'))
+            self.pin_metadata_btn.setChecked(False)
+
+        save_setting("metadata_panel_pinned", self.is_metadata_panel_pinned)
 
     # --- 布局控制 ---
     def _toggle_sidebar(self):
@@ -1127,6 +1157,7 @@ class MainWindow(QWidget):
         save_setting("main_window_geometry_hex", self.saveGeometry().toHex().data().decode())
         save_setting("main_window_maximized", self.isMaximized())
         if hasattr(self, "sidebar"): save_setting("sidebar_width", self.sidebar.width())
+        # The pinned state is saved directly in _toggle_metadata_pin_state
 
     def save_state(self): self._save_window_state()
     
@@ -1140,5 +1171,11 @@ class MainWindow(QWidget):
         else: self.max_btn.setIcon(create_svg_icon("win_max.svg", "#aaa"))
         sw = load_setting("sidebar_width")
         if sw and hasattr(self, "main_splitter"): QTimer.singleShot(0, lambda: self.main_splitter.setSizes([int(sw), self.width()-int(sw)]))
+
+        is_pinned = load_setting("metadata_panel_pinned", False)
+        if is_pinned:
+            # Manually set the state and call the toggle function to ensure UI consistency
+            self.is_metadata_panel_pinned = False # Set to opposite so toggle works correctly
+            self._toggle_metadata_pin_state()
 
     def show_main_window(self): self.show(); self.activateWindow()
