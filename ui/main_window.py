@@ -187,7 +187,6 @@ class MainWindow(QWidget):
         self._resize_start_pos = None
         self._resize_start_geometry = None
         self.is_metadata_panel_visible = False
-        self.is_metadata_panel_pinned = False
         
         self.current_page = 1
         self.page_size = 100
@@ -439,6 +438,20 @@ class MainWindow(QWidget):
         self.tag_filter_label.hide()
         act_bar.addWidget(self.tag_filter_label)
         act_bar.addStretch()
+
+        self.toggle_metadata_btn = QPushButton()
+        self.toggle_metadata_btn.setCheckable(True)
+        self.toggle_metadata_btn.setToolTip("显示/隐藏元数据面板 (Ctrl+I)")
+        self.toggle_metadata_btn.setIcon(create_svg_icon('display.svg', '#aaa'))
+        self.toggle_metadata_btn.setStyleSheet(STYLES['btn_icon'])
+        self.toggle_metadata_btn.clicked.connect(self._toggle_metadata_panel)
+        act_bar.addWidget(self.toggle_metadata_btn)
+
+        separator = QFrame()
+        separator.setFrameShape(QFrame.VLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        separator.setStyleSheet("color: #444;")
+        act_bar.addWidget(separator)
         
         self.btns = {}
         btn_defs = [
@@ -486,20 +499,6 @@ class MainWindow(QWidget):
         icon = QLabel(); icon.setPixmap(create_svg_icon('all_data.svg', '#4a90e2').pixmap(18, 18)); icon.setStyleSheet("background: transparent; border: none;")
         lbl = QLabel("元数据"); lbl.setStyleSheet("font-size: 14px; font-weight: bold; color: #4a90e2; background: transparent; border: none;")
         title_layout.addWidget(icon); title_layout.addWidget(lbl); title_layout.addStretch()
-
-        self.pin_metadata_btn = QPushButton()
-        self.pin_metadata_btn.setCheckable(True)
-        self.pin_metadata_btn.setToolTip("固定/取消固定元数据面板")
-        self.pin_metadata_btn.setIcon(create_svg_icon('pin_tilted.svg', '#aaa'))
-        self.pin_metadata_btn.setFixedSize(24, 24)
-        btn_style = """
-            QPushButton { background-color: transparent; border: none; border-radius: 4px; }
-            QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }
-            QPushButton:checked { background-color: rgba(74, 144, 226, 0.2); }
-        """
-        self.pin_metadata_btn.setStyleSheet(btn_style)
-        self.pin_metadata_btn.clicked.connect(self._toggle_metadata_pin_state)
-        title_layout.addWidget(self.pin_metadata_btn)
 
         layout.addWidget(title_container)
 
@@ -643,20 +642,6 @@ class MainWindow(QWidget):
         dialog.btn_save.clicked.connect(on_save)
         dialog.show_at_cursor()
 
-    def _toggle_metadata_pin_state(self):
-        self.is_metadata_panel_pinned = not self.is_metadata_panel_pinned
-
-        if self.is_metadata_panel_pinned:
-            self._show_metadata_panel()
-            self.pin_metadata_btn.setIcon(create_svg_icon('pin_vertical.svg', COLORS['primary']))
-            self.pin_metadata_btn.setChecked(True)
-        else:
-            self._hide_metadata_panel()
-            self.pin_metadata_btn.setIcon(create_svg_icon('pin_tilted.svg', '#aaa'))
-            self.pin_metadata_btn.setChecked(False)
-
-        save_setting("metadata_panel_pinned", self.is_metadata_panel_pinned)
-
     # --- 布局控制 ---
     def _toggle_sidebar(self):
         is_collapsed = self.sidebar.width() == 60
@@ -671,6 +656,8 @@ class MainWindow(QWidget):
     def _show_metadata_panel(self):
         if self.is_metadata_panel_visible: return
         self.is_metadata_panel_visible = True
+        self.toggle_metadata_btn.setChecked(True)
+        save_setting("metadata_panel_visible", True)
         self.metadata_panel.show()
         self.metadata_animation = QPropertyAnimation(self.metadata_panel, b"minimumWidth")
         self.metadata_animation.setDuration(300)
@@ -683,6 +670,8 @@ class MainWindow(QWidget):
     def _hide_metadata_panel(self):
         if not self.is_metadata_panel_visible: return
         self.is_metadata_panel_visible = False
+        self.toggle_metadata_btn.setChecked(False)
+        save_setting("metadata_panel_visible", False)
         self.metadata_animation = QPropertyAnimation(self.metadata_panel, b"minimumWidth")
         self.metadata_animation.setDuration(300)
         self.metadata_animation.setStartValue(self.metadata_panel.width())
@@ -693,8 +682,10 @@ class MainWindow(QWidget):
         self.metadata_animation.start()
 
     def _toggle_metadata_panel(self):
-        if self.is_metadata_panel_visible: self._hide_metadata_panel()
-        else: self._show_metadata_panel()
+        if self.is_metadata_panel_visible:
+            self._hide_metadata_panel()
+        else:
+            self._show_metadata_panel()
 
     def _toggle_filter_panel(self):
         if self.filter_panel.isVisible(): self.filter_panel.hide()
@@ -1157,7 +1148,6 @@ class MainWindow(QWidget):
         save_setting("main_window_geometry_hex", self.saveGeometry().toHex().data().decode())
         save_setting("main_window_maximized", self.isMaximized())
         if hasattr(self, "sidebar"): save_setting("sidebar_width", self.sidebar.width())
-        # The pinned state is saved directly in _toggle_metadata_pin_state
 
     def save_state(self): self._save_window_state()
     
@@ -1172,10 +1162,8 @@ class MainWindow(QWidget):
         sw = load_setting("sidebar_width")
         if sw and hasattr(self, "main_splitter"): QTimer.singleShot(0, lambda: self.main_splitter.setSizes([int(sw), self.width()-int(sw)]))
 
-        is_pinned = load_setting("metadata_panel_pinned", False)
-        if is_pinned:
-            # Manually set the state and call the toggle function to ensure UI consistency
-            self.is_metadata_panel_pinned = False # Set to opposite so toggle works correctly
-            self._toggle_metadata_pin_state()
+        # Restore metadata panel visibility
+        if load_setting("metadata_panel_visible", False):
+            self._show_metadata_panel()
 
     def show_main_window(self): self.show(); self.activateWindow()
