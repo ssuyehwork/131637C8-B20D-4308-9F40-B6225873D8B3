@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # services/idea_service.py
 from core.config import COLORS
+from core.signals import app_signals
 import hashlib
 import os
 
@@ -25,20 +26,25 @@ class IdeaService:
         if color is None: color = COLORS['default_note']
         iid = self.idea_repo.add(title, content, color, category_id, item_type, data_blob)
         self.tag_repo.update_tags(iid, tags)
+        app_signals.data_changed.emit()
         return iid
 
     def update_idea(self, iid, title, content, color, tags, category_id=None, item_type='text', data_blob=None):
         self.idea_repo.update(iid, title, content, color, category_id, item_type, data_blob)
         self.tag_repo.update_tags(iid, tags)
+        app_signals.data_changed.emit()
 
     def update_field(self, iid, field, value):
         self.idea_repo.update_field(iid, field, value)
+        app_signals.data_changed.emit()
 
     def toggle_field(self, iid, field):
         self.idea_repo.toggle_field(iid, field)
+        app_signals.data_changed.emit()
 
     def set_favorite(self, iid, state):
         self.idea_repo.update_field(iid, 'is_favorite', 1 if state else 0)
+        app_signals.data_changed.emit()
 
     def set_deleted(self, iid, state):
         val = 1 if state else 0
@@ -48,23 +54,28 @@ class IdeaService:
             self.idea_repo.update_field(iid, 'color', COLORS['trash'])
         else:
             self.idea_repo.update_field(iid, 'color', COLORS['uncategorized'])
+        app_signals.data_changed.emit()
 
     def set_rating(self, iid, rating):
         self.idea_repo.update_field(iid, 'rating', rating)
+        app_signals.data_changed.emit()
 
     def delete_permanent(self, iid):
         self.idea_repo.delete_permanent(iid)
+        app_signals.data_changed.emit()
 
     def move_category(self, iid, cat_id):
         self.idea_repo.update_field(iid, 'category_id', cat_id)
         self.idea_repo.update_field(iid, 'is_deleted', 0)
         # 如果移动到分类，应应用分类颜色（略）
+        app_signals.data_changed.emit()
 
     def get_lock_status(self, ids):
         return self.idea_repo.get_lock_status(ids)
 
     def set_locked(self, ids, state):
         self.idea_repo.set_locked(ids, state)
+        app_signals.data_changed.emit()
 
     def get_filter_stats(self, search, f_type, f_val):
         return self.idea_repo.get_filter_stats(search, f_type, f_val)
@@ -74,6 +85,7 @@ class IdeaService:
         c.execute('DELETE FROM idea_tags WHERE idea_id IN (SELECT id FROM ideas WHERE is_deleted=1)')
         c.execute('DELETE FROM ideas WHERE is_deleted=1')
         self.idea_repo.db.commit()
+        app_signals.data_changed.emit()
 
     # --- Clipboard Logic (Ported from db_manager) ---
     def add_clipboard_item(self, item_type, content, data_blob=None, category_id=None):
@@ -91,6 +103,7 @@ class IdeaService:
             c = self.idea_repo.db.get_cursor()
             c.execute("UPDATE ideas SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (existing[0],))
             self.idea_repo.db.commit()
+            app_signals.data_changed.emit()
             return existing[0], False
         else:
             if item_type == 'text': title = content.strip().split('\n')[0][:50]
@@ -99,6 +112,7 @@ class IdeaService:
             else: title = "未命名"
             
             iid = self.idea_repo.add(title, content, COLORS['default_note'], category_id, item_type, data_blob, content_hash)
+            app_signals.data_changed.emit()
             return iid, True
 
     # --- Tag Operations ---
@@ -110,9 +124,11 @@ class IdeaService:
 
     def add_tags_to_multiple_ideas(self, idea_ids, tags):
         self.tag_repo.add_to_multiple(idea_ids, tags)
+        app_signals.data_changed.emit()
         
     def remove_tag_from_multiple_ideas(self, idea_ids, tag_name):
         self.tag_repo.remove_from_multiple(idea_ids, tag_name)
+        app_signals.data_changed.emit()
         
     def get_top_tags(self):
         return self.tag_repo.get_top_tags()
@@ -129,18 +145,23 @@ class IdeaService:
         
     def add_category(self, name, parent_id=None):
         self.category_repo.add(name, parent_id)
+        app_signals.data_changed.emit()
         
     def rename_category(self, cat_id, new_name):
         self.category_repo.rename(cat_id, new_name)
+        app_signals.data_changed.emit()
         
     def delete_category(self, cat_id):
         self.category_repo.delete(cat_id)
+        app_signals.data_changed.emit()
         
     def set_category_color(self, cat_id, color):
         self.category_repo.set_color(cat_id, color)
+        app_signals.data_changed.emit()
         
     def set_category_preset_tags(self, cat_id, tags):
         self.category_repo.set_preset_tags(cat_id, tags)
+        app_signals.data_changed.emit()
         
     def get_category_preset_tags(self, cat_id):
         return self.category_repo.get_preset_tags(cat_id)
@@ -151,6 +172,8 @@ class IdeaService:
         c.execute('SELECT id FROM ideas WHERE category_id=? AND is_deleted=0', (cat_id,))
         ids = [r[0] for r in c.fetchall()]
         self.tag_repo.add_to_multiple(ids, tags_list)
+        app_signals.data_changed.emit()
         
     def save_category_order(self, update_list):
         self.category_repo.save_order(update_list)
+        app_signals.data_changed.emit()
