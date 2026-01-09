@@ -544,6 +544,8 @@ class MainWindow(QWidget):
         QShortcut(QKeySequence("Ctrl+G"), self, self._toggle_filter_panel)
         QShortcut(QKeySequence("Delete"), self, self._handle_del_key)
         QShortcut(QKeySequence("Ctrl+S"), self, self._do_lock)
+        QShortcut(QKeySequence("Ctrl+E"), self, self._do_fav)
+        QShortcut(QKeySequence("Ctrl+P"), self, self._do_pin)
 
         for i in range(6):
             QShortcut(QKeySequence(f"Ctrl+{i}"), self, lambda r=i: self._do_set_rating(r))
