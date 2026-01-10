@@ -15,7 +15,6 @@ from core.signals import app_signals
 from ui.quick_window import QuickWindow
 from ui.main_window import MainWindow
 from ui.ball import FloatingBall
-from ui.action_popup import ActionPopup
 from ui.common_tags_manager import CommonTagsManager
 from core.settings import load_setting
 
@@ -46,7 +45,6 @@ class AppManager(QObject):
         self.main_window = None
         self.quick_window = None
         self.ball = None
-        self.popup = None 
         self.tray_icon = None
         self.tags_manager_dialog = None
         
@@ -122,11 +120,6 @@ class AppManager(QObject):
         self.quick_window = QuickWindow(self.service) 
         self.quick_window.toggle_main_window_requested.connect(self.toggle_main_window)
         
-        self.popup = ActionPopup(self.service) 
-        self.popup.request_bookmark.connect(self._handle_popup_bookmark)
-        self.popup.request_tag_toggle.connect(self._handle_popup_tag_toggle)
-        self.popup.request_manager.connect(self._open_common_tags_manager)
-        
         self.quick_window.cm.data_captured.connect(self._on_clipboard_data_captured)
         
         self._init_tray_icon()
@@ -187,23 +180,10 @@ class AppManager(QObject):
         self.tags_manager_dialog.show(); self._force_activate(self.tags_manager_dialog)
 
     def _on_tags_manager_closed(self, result):
-        if result == QDialog.Accepted and self.popup: self.popup.common_tags_bar.reload_tags()
         self.tags_manager_dialog = None
 
     def _on_clipboard_data_captured(self, idea_id):
         self.ball.trigger_clipboard_feedback()
-        if self.popup: self.popup.show_at_mouse(idea_id)
-
-    def _handle_popup_bookmark(self, idea_id):
-        idea_data = self.service.get_idea(idea_id)
-        if not idea_data: return
-        is_favorite = idea_data['is_favorite'] == 1
-        self.service.set_favorite(idea_id, not is_favorite)
-
-    def _handle_popup_tag_toggle(self, idea_id, tag_name):
-        current_tags = self.service.get_tags(idea_id)
-        if tag_name in current_tags: self.service.remove_tag_from_multiple_ideas([idea_id], tag_name)
-        else: self.service.add_tags_to_multiple_ideas([idea_id], [tag_name])
 
     def _force_activate(self, window):
         if not window: return
