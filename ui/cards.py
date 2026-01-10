@@ -165,14 +165,19 @@ class IdeaCard(QFrame):
             self.content_layout.addWidget(content)
 
         # 时间 (带时钟符号)
-        self.time_label.setText(f'🕒 {self.data["updated_at"][:16]}')
+        self.time_label.setText(f'{self.data["updated_at"][:16]}')
         
         # 标签
         while self.tags_layout.count():
             item = self.tags_layout.takeAt(0)
             if item.widget(): item.widget().deleteLater()
         
-        tags = self.db.get_tags(self.id)
+        # 优先使用预加载的标签，避免 N+1 查询
+        if 'tags' in self.data:
+            tags = self.data['tags']
+        else:
+            tags = self.db.get_tags(self.id)
+            
         limit = 6 
         for i, tag in enumerate(tags):
             if i >= limit:

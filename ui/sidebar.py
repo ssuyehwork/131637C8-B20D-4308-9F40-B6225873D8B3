@@ -22,10 +22,9 @@ class Sidebar(QTreeWidget):
     data_changed = pyqtSignal()
     new_data_requested = pyqtSignal(int)
 
-    # 【核心修改】构造函数接收 service
     def __init__(self, service, parent=None):
         super().__init__(parent)
-        self.db = service # 为了兼容性，变量名暂用 self.db，但实际上是 service
+        self.db = service 
         self.setHeaderHidden(True)
         self.setIndentation(15)
         
@@ -35,6 +34,8 @@ class Sidebar(QTreeWidget):
         self.setDropIndicatorShown(True)
         self.setDragDropMode(self.InternalMove)
 
+        # [修正] 移除了 QTreeWidget::item 中的 'height: 28px;' 
+        # 改由代码控制不同类型 Item 的高度，从而允许分隔线变矮
         self.setStyleSheet(f"""
             QTreeWidget {{
                 background-color: {COLORS['bg_mid']};
@@ -45,7 +46,7 @@ class Sidebar(QTreeWidget):
                 outline: none;
             }}
             QTreeWidget::item {{
-                height: 28px;
+                /* height: 28px;  <-- 已删除此行，解除强制高度限制 */
                 padding: 1px 4px;
                 border-radius: 6px;
                 margin-bottom: 2px;
@@ -77,7 +78,6 @@ class Sidebar(QTreeWidget):
         QTimer.singleShot(10, self.refresh_sync)
 
     def refresh_sync(self):
-        # 【关键修复】保存当前选中项的数据,以便刷新后恢复
         current_selection = None
         current_item = self.currentItem()
         if current_item:
@@ -104,23 +104,35 @@ class Sidebar(QTreeWidget):
                 item.setData(0, Qt.UserRole, (key, None))
                 item.setFlags(item.flags() & ~Qt.ItemIsDragEnabled) 
                 item.setExpanded(False)
+                # [新增] 手动设置普通菜单项的高度，保持舒适点击感
+                item.setSizeHint(0, QSize(0, 30))
 
+            # --- 分隔线调整区域 ---
             sep_item = QTreeWidgetItem(self)
             sep_item.setFlags(Qt.NoItemFlags)
-            sep_item.setSizeHint(0, QSize(0, 16)) 
+            # [修正] 设置极小高度，现在 CSS 不会阻挡它了
+            sep_item.setSizeHint(0, QSize(0, 10)) 
+            
             container = QWidget()
             container.setStyleSheet("background: transparent;")
             layout = QVBoxLayout(container)
-            layout.setContentsMargins(10, 0, 10, 0)
+            layout.setContentsMargins(10, 0, 10, 0) # 紧凑边距
+            layout.setSpacing(0)
             layout.setAlignment(Qt.AlignCenter)
+            
             line = QFrame()
             line.setFixedHeight(1) 
             line.setStyleSheet("background-color: #505050; border: none;") 
             layout.addWidget(line)
+            
             self.setItemWidget(sep_item, 0, container)
+            # --------------------
 
-            user_partitions_root = QTreeWidgetItem(self, ["🗃️ 我的分区"])
+            user_partitions_root = QTreeWidgetItem(self, ["我的分区"])
+            user_partitions_root.setIcon(0, create_svg_icon("branch.svg", "white"))
             user_partitions_root.setFlags(user_partitions_root.flags() & ~Qt.ItemIsSelectable & ~Qt.ItemIsDragEnabled)
+            user_partitions_root.setSizeHint(0, QSize(0, 30)) # [新增] 设置高度
+            
             font = user_partitions_root.font(0)
             font.setBold(True)
             user_partitions_root.setFont(0, font)
@@ -131,7 +143,6 @@ class Sidebar(QTreeWidget):
             
             self.expandAll()
             
-            # 【关键修复】恢复之前的选中状态
             if current_selection:
                 self._restore_selection(current_selection)
                 
@@ -139,7 +150,6 @@ class Sidebar(QTreeWidget):
             self.blockSignals(False)
     
     def _restore_selection(self, target_data):
-        """恢复指定数据的选中状态"""
         from PyQt5.QtWidgets import QTreeWidgetItemIterator
         iterator = QTreeWidgetItemIterator(self)
         while iterator.value():
@@ -171,6 +181,8 @@ class Sidebar(QTreeWidget):
             item = QTreeWidgetItem(parent_item, [f"{p.name} ({total_count})"])
             item.setIcon(0, self._create_color_icon(p.color))
             item.setData(0, Qt.UserRole, ('category', p.id))
+            # [新增] 手动设置分区子项的高度
+            item.setSizeHint(0, QSize(0, 28))
             
             if p.children:
                 self._add_partition_recursive(p.children, item, counts)
@@ -255,8 +267,8 @@ class Sidebar(QTreeWidget):
         menu = QMenu(self)
         menu.setStyleSheet("background:#2d2d2d;color:white")
 
-        if not item or item.text(0) == "🗃️ 我的分区":
-            menu.addAction('➕ 组', self._new_group)
+        if not item or item.text(0) == "我的分区":
+            menu.addAction('新建组', self._new_group)
             menu.exec_(self.mapToGlobal(pos))
             return
 
@@ -264,7 +276,7 @@ class Sidebar(QTreeWidget):
         if not data: return
 
         if data[0] == 'trash':
-            menu.addAction('🗑️ 清空回收站', self._empty_trash)
+            menu.addAction('清空回收站', self._empty_trash)
             menu.exec_(self.mapToGlobal(pos))
             return
 
@@ -273,20 +285,20 @@ class Sidebar(QTreeWidget):
             raw_text = item.text(0)
             current_name = raw_text.split(' (')[0]
 
-            menu.addAction('➕ 数据', lambda: self._request_new_data(cat_id))
+            menu.addAction('添加数据', lambda: self._request_new_data(cat_id))
             menu.addSeparator()
-            menu.addAction('🎨 设置颜色', lambda: self._change_color(cat_id))
-            menu.addAction('🎲 随机颜色', lambda: self._set_random_color(cat_id))
-            menu.addAction('🏷️ 设置预设标签', lambda: self._set_preset_tags(cat_id))
+            menu.addAction('设置颜色', lambda: self._change_color(cat_id))
+            menu.addAction('随机颜色', lambda: self._set_random_color(cat_id))
+            menu.addAction('设置预设标签', lambda: self._set_preset_tags(cat_id))
             menu.addSeparator()
-            menu.addAction('➕ 组', self._new_group)
-            menu.addAction('➕ 区', lambda: self._new_zone(cat_id))
-            menu.addAction('✏️ 重命名', lambda: self._rename_category(cat_id, current_name))
-            menu.addAction('🗑️ 删除', lambda: self._del_category(cat_id))
+            menu.addAction('新建组', self._new_group)
+            menu.addAction('新建分区', lambda: self._new_zone(cat_id))
+            menu.addAction('重命名', lambda: self._rename_category(cat_id, current_name))
+            menu.addAction('删除', lambda: self._del_category(cat_id))
             menu.exec_(self.mapToGlobal(pos))
 
     def _empty_trash(self):
-        if QMessageBox.Yes == QMessageBox.warning(self, '清空回收站', '⚠️ 确定要清空回收站吗？\n此操作将永久删除所有内容，不可恢复！', QMessageBox.Yes | QMessageBox.No):
+        if QMessageBox.Yes == QMessageBox.warning(self, '清空回收站', '确定要清空回收站吗？\n此操作将永久删除所有内容，不可恢复！', QMessageBox.Yes | QMessageBox.No):
             self.db.empty_trash()
             self.data_changed.emit()
             self.refresh()
@@ -295,7 +307,7 @@ class Sidebar(QTreeWidget):
         current_tags = self.db.get_category_preset_tags(cat_id)
         
         dlg = QDialog(self)
-        dlg.setWindowTitle("🏷️ 设置预设标签")
+        dlg.setWindowTitle("设置预设标签")
         dlg.setStyleSheet(f"background-color: {COLORS['bg_dark']}; color: #EEE;")
         dlg.setFixedSize(350, 150)
         

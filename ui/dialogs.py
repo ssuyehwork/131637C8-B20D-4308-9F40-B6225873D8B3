@@ -114,7 +114,11 @@ class EditDialog(BaseDialog):
         tb_layout = QHBoxLayout(self.title_bar)
         tb_layout.setContentsMargins(15, 0, 10, 0)
         
-        self.win_title = QLabel('✨ 记录灵感' if not self.idea_id else '✏️ 编辑笔记')
+        title_icon = QLabel()
+        title_icon.setPixmap(create_svg_icon("action_edit.svg", COLORS['primary']).pixmap(14, 14))
+        tb_layout.addWidget(title_icon)
+        
+        self.win_title = QLabel('记录灵感' if not self.idea_id else '编辑笔记')
         self.win_title.setStyleSheet("font-weight: bold; color: #ddd; font-size: 13px; border: none; background: transparent;")
         tb_layout.addWidget(self.win_title)
         
@@ -153,21 +157,21 @@ class EditDialog(BaseDialog):
         left_panel.setContentsMargins(5, 5, 5, 5)
         left_panel.setSpacing(12)
         
-        left_panel.addWidget(QLabel('📂 分区'))
+        left_panel.addWidget(QLabel('分区'))
         self.category_combo = QComboBox()
         self.category_combo.setFixedHeight(40)
-        self.category_combo.addItem("🚫 未分类", None)
+        self.category_combo.addItem("未分类", None)
         cats = self.db.get_categories()
-        for c in cats: self.category_combo.addItem(f"📁 {c[1]}", c[0])
+        for c in cats: self.category_combo.addItem(f"{c[1]}", c[0])
         left_panel.addWidget(self.category_combo)
 
-        left_panel.addWidget(QLabel('📌 标题'))
+        left_panel.addWidget(QLabel('标题'))
         self.title_inp = QLineEdit()
         self.title_inp.setPlaceholderText("请输入灵感标题...")
         self.title_inp.setFixedHeight(40)
         left_panel.addWidget(self.title_inp)
         
-        left_panel.addWidget(QLabel('🏷️ 标签 (智能补全)'))
+        left_panel.addWidget(QLabel('标签 (智能补全)'))
         self.tags_inp = QLineEdit()
         self.tags_inp.setPlaceholderText("使用逗号分隔，如: 工作, 待办")
         self.tags_inp.setFixedHeight(40)
@@ -175,7 +179,7 @@ class EditDialog(BaseDialog):
         left_panel.addWidget(self.tags_inp)
         
         left_panel.addSpacing(10)
-        left_panel.addWidget(QLabel('🎨 标记颜色'))
+        left_panel.addWidget(QLabel('标记颜色'))
         color_layout = QGridLayout()
         color_layout.setSpacing(10)
         
@@ -211,7 +215,7 @@ class EditDialog(BaseDialog):
         right_panel.setSpacing(10)
         
         header_layout = QHBoxLayout()
-        header_layout.addWidget(QLabel('📝 详细内容'))
+        header_layout.addWidget(QLabel('详细内容'))
         
         btn_style = "QPushButton { background: transparent; border: 1px solid #444; border-radius: 4px; margin-left: 2px; } QPushButton:hover { background-color: #444; }"
         
@@ -237,7 +241,7 @@ class EditDialog(BaseDialog):
         # === 新增功能按钮 ===
         header_layout.addSpacing(5)
         # 待办事项
-        btn_todo = QPushButton("☑")
+        btn_todo = QPushButton("Todo")
         btn_todo.setFixedSize(28, 28)
         btn_todo.setToolTip("插入待办事项")
         btn_todo.setStyleSheet(btn_style)
@@ -245,7 +249,7 @@ class EditDialog(BaseDialog):
         header_layout.addWidget(btn_todo)
         
         # Markdown 预览
-        btn_preview = QPushButton("👁️")
+        btn_preview = QPushButton("Pre")
         btn_preview.setFixedSize(28, 28)
         btn_preview.setToolTip("切换 Markdown 预览/编辑")
         btn_preview.setStyleSheet(btn_style)
@@ -286,7 +290,7 @@ class EditDialog(BaseDialog):
         btn_prev = QPushButton(); btn_prev.setIcon(create_svg_icon("nav_prev.svg", "#ccc")); btn_prev.setFixedSize(24, 24); btn_prev.clicked.connect(self._find_prev); btn_prev.setStyleSheet("background: transparent; border: none;")
         btn_next = QPushButton(); btn_next.setIcon(create_svg_icon("nav_next.svg", "#ccc")); btn_next.setFixedSize(24, 24); btn_next.clicked.connect(self._find_next); btn_next.setStyleSheet("background: transparent; border: none;")
         btn_cls = QPushButton(); btn_cls.setIcon(create_svg_icon("win_close.svg", "#ccc")); btn_cls.setFixedSize(24, 24); btn_cls.clicked.connect(lambda: self.search_bar.hide()); btn_cls.setStyleSheet("background: transparent; border: none;")
-        sb_layout.addWidget(QLabel("🔍")); sb_layout.addWidget(self.search_inp); sb_layout.addWidget(btn_prev); sb_layout.addWidget(btn_next); sb_layout.addWidget(btn_cls)
+        sb_layout.addWidget(self.search_inp); sb_layout.addWidget(btn_prev); sb_layout.addWidget(btn_next); sb_layout.addWidget(btn_cls)
         right_panel.addWidget(self.search_bar)
 
         self.content_inp = RichTextEdit()
@@ -449,7 +453,7 @@ class EditDialog(BaseDialog):
 
     def _save_data(self):
         title = self.title_inp.text().strip()
-        if not title: self.title_inp.setPlaceholderText("⚠️ 标题不能为空!"); self.title_inp.setFocus(); return
+        if not title: self.title_inp.setPlaceholderText("标题不能为空!"); self.title_inp.setFocus(); return
         tags = [t.strip() for t in self.tags_inp.text().split(',') if t.strip()]
         
         # 确保保存前退出 Markdown 预览模式，获取最新的纯文本源码
@@ -477,14 +481,26 @@ class StatsDialog(BaseDialog):
         layout = QVBoxLayout(self.content_container)
         layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(20)
+
+        stats_header = QHBoxLayout()
+        stats_header.setSpacing(8)
+        header_icon = QLabel()
+        header_icon.setPixmap(create_svg_icon("display.svg", COLORS['primary']).pixmap(20, 20))
+        stats_header.addWidget(header_icon)
+        stats_title = QLabel("数据看板")
+        stats_title.setStyleSheet(f"color: {COLORS['primary']}; font-size: 16px; font-weight: bold;")
+        stats_header.addWidget(stats_title)
+        stats_header.addStretch()
+        layout.addLayout(stats_header)
+
         counts = db.get_counts()
         grid = QGridLayout(); grid.setSpacing(15)
-        grid.addWidget(self._box("📚 总灵感", counts['all'], COLORS['primary']), 0, 0)
-        grid.addWidget(self._box("📅 今日新增", counts['today'], COLORS['success']), 0, 1)
-        grid.addWidget(self._box("⭐ 我的收藏", counts['favorite'], COLORS['warning']), 1, 0)
-        grid.addWidget(self._box("🏷️ 待整理", counts['untagged'], COLORS['danger']), 1, 1)
+        grid.addWidget(self._box("总灵感", counts['all'], COLORS['primary']), 0, 0)
+        grid.addWidget(self._box("今日新增", counts['today'], COLORS['success']), 0, 1)
+        grid.addWidget(self._box("我的收藏", counts['favorite'], COLORS['warning']), 1, 0)
+        grid.addWidget(self._box("待整理", counts['untagged'], COLORS['danger']), 1, 1)
         layout.addLayout(grid)
-        layout.addSpacing(10); layout.addWidget(QLabel("🔥 热门标签 Top 5"))
+        layout.addSpacing(10); layout.addWidget(QLabel("热门标签 Top 5"))
         stats = db.get_top_tags()
         if not stats: layout.addWidget(QLabel("暂无标签数据", styleSheet="color:#666; font-style:italic; font-weight:normal;"))
         else:
@@ -515,13 +531,25 @@ class ExtractDialog(BaseDialog):
         self.resize(700, 600)
         layout = QVBoxLayout(self.content_container)
         layout.setContentsMargins(20, 20, 20, 20)
+        
+        extract_header = QHBoxLayout()
+        extract_header.setSpacing(8)
+        header_icon = QLabel()
+        header_icon.setPixmap(create_svg_icon("action_export.svg", COLORS['primary']).pixmap(20, 20))
+        extract_header.addWidget(header_icon)
+        extract_title = QLabel("提取内容")
+        extract_title.setStyleSheet(f"color: {COLORS['primary']}; font-size: 16px; font-weight: bold;")
+        extract_header.addWidget(extract_title)
+        extract_header.addStretch()
+        layout.addLayout(extract_header)
+
         self.txt = QTextEdit(); self.txt.setReadOnly(True); self.txt.setPlaceholderText("暂无数据..."); layout.addWidget(self.txt)
         data = db.get_ideas('', 'all', None)
         text = '\n' + '-'*60 + '\n'; text += '\n'.join([f"【{d[1]}】\n{d[2]}\n" + '-'*60 for d in data])
         self.txt.setText(text)
         layout.addSpacing(10)
         btn = QPushButton('  复制全部到剪贴板'); btn.setIcon(create_svg_icon("action_export.svg", "white")); btn.setFixedHeight(45); btn.setStyleSheet(STYLES['btn_primary'])
-        btn.clicked.connect(lambda: (QApplication.clipboard().setText(text), QMessageBox.information(self,'成功','✅ 内容已复制'))); layout.addWidget(btn)
+        btn.clicked.connect(lambda: (QApplication.clipboard().setText(text), QMessageBox.information(self,'成功','内容已复制'))); layout.addWidget(btn)
 
 # === 预览窗口 ===
 class PreviewDialog(QDialog):

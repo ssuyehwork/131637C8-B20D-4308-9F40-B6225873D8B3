@@ -158,6 +158,8 @@ class AppManager(QObject):
         dynamic_icon = QIcon(pixmap)
         
         self.app.setWindowIcon(dynamic_icon)
+        if self.main_window:
+            self.main_window.refresh_logo()
         self.tray_icon = QSystemTrayIcon(self.app)
         self.tray_icon.setIcon(dynamic_icon)
         self.tray_icon.setToolTip("快速笔记")

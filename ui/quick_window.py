@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QListWidget, QL
                              QPushButton, QStyle, QAction, QSplitter, QGraphicsDropShadowEffect, 
                              QLabel, QTreeWidgetItemIterator, QShortcut, QAbstractItemView, QMenu,
                              QColorDialog, QInputDialog, QMessageBox)
-from PyQt5.QtCore import Qt, QTimer, QPoint, QRect, QSettings, QUrl, QMimeData, pyqtSignal, QObject, QSize, QByteArray
+from PyQt5.QtCore import Qt, QTimer, QPoint, QRect, QSettings, QUrl, QMimeData, pyqtSignal, QObject, QSize, QByteArray, QBuffer, QIODevice
 from PyQt5.QtGui import QImage, QColor, QCursor, QPixmap, QPainter, QIcon, QKeySequence, QDrag
 
 from services.preview_service import PreviewService
@@ -161,6 +161,15 @@ QWidget {
     font-family: "Microsoft YaHei", "Segoe UI Emoji";
     font-size: 14px;
 }
+/* 深色 Tooltip 样式 */
+QToolTip {
+    color: #ffffff;
+    background-color: #2b2b2b;
+    border: 1px solid #444;
+    padding: 2px;
+    border-radius: 4px;
+    opacity: 240; 
+}
 QLabel#TitleLabel {
     color: #858585;
     font-weight: bold;
@@ -251,7 +260,6 @@ class QuickWindow(QWidget):
         
         self.monitor_timer = QTimer(self)
         self.monitor_timer.timeout.connect(self._monitor_foreground_window)
-        # 保持监控频率，但移除了内部的危险操作
         if user32: self.monitor_timer.start(200)
         
         self.search_timer = QTimer(self)
@@ -311,7 +319,11 @@ class QuickWindow(QWidget):
         title_bar_layout.setContentsMargins(0, 0, 0, 0)
         title_bar_layout.setSpacing(5)
         
-        self.title_label = QLabel("⚡️ 快速笔记")
+        title_icon = QLabel()
+        title_icon.setPixmap(create_svg_icon("zap.svg", COLORS['primary']).pixmap(16, 16))
+        title_bar_layout.addWidget(title_icon)
+        
+        self.title_label = QLabel("快速笔记")
         self.title_label.setObjectName("TitleLabel")
         title_bar_layout.addWidget(self.title_label)
         
@@ -357,7 +369,7 @@ class QuickWindow(QWidget):
         self.main_layout.addLayout(title_bar_layout)
         
         self.search_box = SearchLineEdit(self)
-        self.search_box.setPlaceholderText("🔍 搜索灵感 (双击查看历史)")
+        self.search_box.setPlaceholderText("搜索灵感 (双击查看历史)")
         self.search_box.setClearButtonEnabled(True)
 
         _clear_icon_path = create_clear_button_icon()
@@ -372,7 +384,6 @@ class QuickWindow(QWidget):
             border-radius: 8px;
         }}
         """
-        # Apply the style directly to the search box for better encapsulation
         self.search_box.setStyleSheet(self.search_box.styleSheet() + clear_button_style)
 
         self.main_layout.addWidget(self.search_box)
@@ -469,7 +480,6 @@ class QuickWindow(QWidget):
             is_locked = data['is_locked']
             rating = data['rating']
             
-            # --- 菜单样式优化 ---
             menu = QMenu(self)
             menu.setStyleSheet("""
                 QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; border-radius: 4px; padding: 4px; }
@@ -530,10 +540,7 @@ class QuickWindow(QWidget):
         idea_id = self._get_selected_id()
         if item and idea_id:
             self.db.set_rating(idea_id, rating)
-            new_data = self.db.get_idea(idea_id)
-            if new_data:
-                item.setData(Qt.UserRole, new_data)
-                item.setText(self._get_content_display(new_data))
+            # 移除手动更新代码，等待全局刷新
 
     def _copy_item_content(self, data):
         item_type = data['item_type'] or 'text'
@@ -555,10 +562,7 @@ class QuickWindow(QWidget):
         current_state = status.get(iid, 0)
         new_state = 0 if current_state else 1
         self.db.set_locked([iid], new_state)
-        new_data = self.db.get_idea(iid)
-        if new_data:
-            item.setData(Qt.UserRole, new_data)
-            item.setText(self._get_content_display(new_data))
+        # 移除手动更新代码，等待全局刷新
     
     def _do_edit_selected(self):
         iid = self._get_selected_id()
@@ -587,16 +591,13 @@ class QuickWindow(QWidget):
         iid = self._get_selected_id()
         if iid and item:
             self.db.toggle_field(iid, 'is_favorite')
-            new_data = self.db.get_idea(iid)
-            if new_data:
-                item.setData(Qt.UserRole, new_data)
-                item.setText(self._get_content_display(new_data))
+            # 移除手动更新代码，等待全局刷新
 
     def _do_toggle_pin(self):
         iid = self._get_selected_id()
         if iid:
             self.db.toggle_field(iid, 'is_pinned')
-            self._update_list()
+            # 移除手动更新代码，等待全局刷新
 
     def _handle_category_drop(self, idea_id, cat_id):
         target_item = None
@@ -733,10 +734,6 @@ class QuickWindow(QWidget):
         super().showEvent(event)
 
     def _monitor_foreground_window(self):
-        """
-        修正后的监控方法：
-        仅记录前台窗口句柄，移除了导致系统卡顿的 AttachThreadInput 逻辑。
-        """
         if not user32: return 
         current_hwnd = user32.GetForegroundWindow()
         if current_hwnd == 0 or current_hwnd == self.my_hwnd: return
@@ -744,7 +741,7 @@ class QuickWindow(QWidget):
         if current_hwnd != self.last_active_hwnd:
             self.last_active_hwnd = current_hwnd
             self.last_thread_id = user32.GetWindowThreadProcessId(current_hwnd, None)
-            self.last_focus_hwnd = None # 移除焦点控件记录，由系统自动处理
+            self.last_focus_hwnd = None 
 
     def _on_search_text_changed(self): self.search_timer.start(300)
 
@@ -762,44 +759,135 @@ class QuickWindow(QWidget):
 
         items = self.db.get_ideas(search=search_text, f_type=f_type, f_val=f_val)
         self.list_widget.clear()
-        categories = {c[0]: c[1] for c in self.db.get_categories()}
         
         for item_tuple in items:
             list_item = QListWidgetItem()
             list_item.setData(Qt.UserRole, item_tuple)
             
             item_type = item_tuple['item_type'] or 'text'
-            if item_type == 'image':
-                blob_data = item_tuple['data_blob']
-                if blob_data:
-                    pixmap = QPixmap(); pixmap.loadFromData(blob_data)
-                    if not pixmap.isNull(): list_item.setIcon(QIcon(pixmap))
+            text_part = self._get_content_display(item_tuple)
             
-            display_text = self._get_content_display(item_tuple)
-            list_item.setText(display_text)
+            # --- 列表项视觉简化 ---
+            container = QWidget()
+            layout = QHBoxLayout(container)
+            layout.setContentsMargins(10, 4, 10, 4)
+            layout.setSpacing(10)
             
-            idea_id = item_tuple['id']; category_id = item_tuple['category_id']
-            cat_name = categories.get(category_id, "未分类")
-            tags = self.db.get_tags(idea_id); tags_str = " ".join([f"#{t}" for t in tags]) if tags else "无"
+            # 1. 主图标 (图片显示缩略图，其他显示类型图标)
+            icon_lbl = QLabel()
+            icon_lbl.setFixedSize(32, 32)
+            icon_lbl.setAlignment(Qt.AlignCenter)
+            if item_type == 'image' and item_tuple['data_blob']:
+                pixmap = QPixmap(); pixmap.loadFromData(item_tuple['data_blob'])
+                if not pixmap.isNull():
+                    icon_lbl.setPixmap(pixmap.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            else:
+                icon_name = 'folder.svg' if item_type == 'folder' else 'all_data.svg' # 简单区分
+                icon_lbl.setPixmap(create_svg_icon(icon_name, "#666").pixmap(18, 18))
+            layout.addWidget(icon_lbl)
             
-            list_item.setToolTip(f"📂 分区: {cat_name}\n🏷️ 标签: {tags_str}")
+            # 2. 文本标签 (仅显示标题或简略内容)
+            lbl = QLabel(text_part)
+            lbl.setStyleSheet("color: #ccc; font-size: 13px; background: transparent; border: none;")
+            layout.addWidget(lbl, 1)
+            
             self.list_widget.addItem(list_item)
+            self.list_widget.setItemWidget(list_item, container)
+            
+            # --- 设置增强版 Tooltip (修改后: 元数据在上，内容在下，使用 SVG 图标) ---
+            self._update_list_item_tooltip(list_item, item_tuple)
             
         if self.list_widget.count() > 0: self.list_widget.setCurrentRow(0)
 
+    # [新增] 将 SVG 图标转为 Base64 HTML 字符串
+    def _get_icon_html(self, icon_name, color):
+        icon = create_svg_icon(icon_name, color)
+        pixmap = icon.pixmap(14, 14) # Tooltip 小图标尺寸
+        ba = QByteArray()
+        buffer = QBuffer(ba)
+        buffer.open(QIODevice.WriteOnly)
+        pixmap.save(buffer, "PNG")
+        base64_str = ba.toBase64().data().decode()
+        return f'<img src="data:image/png;base64,{base64_str}" width="14" height="14" style="vertical-align:middle;">'
+
+    def _update_list_item_tooltip(self, list_item, item_data):
+        """为列表项设置详细的富文本 Tooltip (使用 SVG 图标)"""
+        # 1. 获取分类和标签
+        category_id = item_data['category_id']
+        all_cats = self.db.get_categories() 
+        cat_name = "未分类"
+        for c in all_cats:
+            if c['id'] == category_id:
+                cat_name = c['name']; break
+        
+        tags = self.db.get_tags(item_data['id'])
+        tags_str = ", ".join(tags) if tags else "无"
+        
+        # 2. 获取内容预览
+        full_content = item_data['content'] or ""
+        preview_limit = 400 
+        content_preview = full_content[:preview_limit].strip().replace('\n', '<br>')
+        if len(full_content) > preview_limit: content_preview += "..."
+        if not content_preview and item_data['title']:
+            content_preview = item_data['title'] 
+            
+        # 3. 状态图标
+        flags = []
+        if item_data['is_pinned']: flags.append(f"{self._get_icon_html('pin_vertical.svg', '#e74c3c')} 置顶")
+        if item_data['is_locked']: flags.append(f"{self._get_icon_html('lock.svg', COLORS['success'])} 锁定")
+        if item_data['is_favorite']: flags.append(f"{self._get_icon_html('bookmark.svg', '#ff6b81')} 书签")
+        flags_str = "&nbsp;&nbsp;".join(flags) if flags else "无"
+        
+        # 4. 星级
+        rating_val = item_data['rating'] or 0
+        if rating_val > 0:
+            star_icon = self._get_icon_html('star_filled.svg', '#f39c12')
+            rating_str = (star_icon + " ") * rating_val
+        else:
+            rating_str = "无"
+            
+        # 5. 图标定义
+        icon_folder = self._get_icon_html("branch.svg", COLORS['primary'])
+        icon_tag = self._get_icon_html("tag.svg", "#FFAB91")
+        icon_star = self._get_icon_html("star.svg", "#f39c12")
+        icon_flag = self._get_icon_html("pin_tilted.svg", "#aaaaaa")
+        
+        # 6. 构建 HTML 表格 Tooltip
+        tooltip_html = f"""
+        <html><body>
+        <table border="0" cellpadding="1" cellspacing="0" style="color: #ddd;">
+            <tr>
+                <td width="20">{icon_folder}</td>
+                <td><b>分区:</b> {cat_name}</td>
+            </tr>
+            <tr>
+                <td width="20">{icon_tag}</td>
+                <td><b>标签:</b> {tags_str}</td>
+            </tr>
+            <tr>
+                <td width="20">{icon_star}</td>
+                <td><b>评级:</b> {rating_str}</td>
+            </tr>
+            <tr>
+                <td width="20">{icon_flag}</td>
+                <td><b>状态:</b> {flags_str}</td>
+            </tr>
+        </table>
+        <hr style="border: 0; border-top: 1px solid #555; margin: 5px 0;">
+        <div style="color: #ccc; font-size: 12px; line-height: 1.4;">
+            {content_preview}
+        </div>
+        </body></html>
+        """
+        list_item.setToolTip(tooltip_html)
+
     def _get_content_display(self, item_tuple):
-        title = item_tuple['title']; content = item_tuple['content']; prefix = ""
-        rating = item_tuple['rating'] or 0
-        
-        if rating > 0: prefix += f"{'★'*rating} "
-        if item_tuple['is_locked']: prefix += "🔒 "
-        if item_tuple['is_pinned']: prefix += "📌 "
-        if item_tuple['is_favorite']: prefix += "🔖 "
-        
+        # We now return only the text part, icons are handled via setItemWidget
+        title = item_tuple['title']; content = item_tuple['content']
         item_type = item_tuple['item_type'] or 'text'
         text_part = title if item_type != 'text' else (content if content else "")
         text_part = text_part.replace('\n', ' ').replace('\r', '').strip()[:150]
-        return prefix + text_part
+        return text_part
 
     def _create_color_icon(self, color_str):
         pixmap = QPixmap(16, 16); pixmap.fill(Qt.transparent); painter = QPainter(pixmap)
@@ -874,7 +962,6 @@ class QuickWindow(QWidget):
                 if item_tuple['data_blob']:
                     image = QImage(); image.loadFromData(item_tuple['data_blob']); clipboard.setImage(image)
             elif item_type != 'text':
-                # 任何非 Image 非 Text 的都视为文件类型处理
                 if item_tuple['content']:
                     mime_data = QMimeData(); mime_data.setUrls([QUrl.fromLocalFile(p) for p in item_tuple['content'].split(';') if p])
                     clipboard.setMimeData(mime_data)
@@ -889,14 +976,12 @@ class QuickWindow(QWidget):
         if not target_win or not user32.IsWindow(target_win): return
         
         curr_thread = kernel32.GetCurrentThreadId(); attached = False
-        # 仅在需要粘贴的一瞬间进行挂靠
         if target_thread and curr_thread != target_thread: attached = user32.AttachThreadInput(curr_thread, target_thread, True)
         
         try:
             if user32.IsIconic(target_win): user32.ShowWindow(target_win, 9)
             user32.SetForegroundWindow(target_win)
             
-            # 如果之前有记录焦点控件，尝试恢复；如果没有，SetForegroundWindow通常已足够
             if target_focus and user32.IsWindow(target_focus): user32.SetFocus(target_focus)
             
             time.sleep(0.1)
@@ -935,15 +1020,15 @@ class QuickWindow(QWidget):
             if data and data.get('type') == 'partition':
                 cat_id = data.get('id'); raw_text = item.text(0); current_name = raw_text.split(' (')[0]
                 
-                menu.addAction('➕ 新建数据', lambda: self._request_new_data(cat_id))
+                menu.addAction('新建数据', lambda: self._request_new_data(cat_id))
                 menu.addSeparator()
-                menu.addAction('🎨 设置颜色', lambda: self._change_color(cat_id))
-                menu.addAction('🏷️ 设置预设标签', lambda: self._set_preset_tags(cat_id))
+                menu.addAction('设置颜色', lambda: self._change_color(cat_id))
+                menu.addAction('设置预设标签', lambda: self._set_preset_tags(cat_id))
                 menu.addSeparator()
-                menu.addAction('➕ 新建分组', self._new_group)
-                menu.addAction('➕ 新建分区', lambda: self._new_zone(cat_id))
-                menu.addAction('✏️ 重命名', lambda: self._rename_category(cat_id, current_name))
-                menu.addAction('🗑️ 删除', lambda: self._del_category(cat_id))
+                menu.addAction('新建分组', self._new_group)
+                menu.addAction('新建分区', lambda: self._new_zone(cat_id))
+                menu.addAction('重命名', lambda: self._rename_category(cat_id, current_name))
+                menu.addAction('删除', lambda: self._del_category(cat_id))
                 
                 menu.exec_(self.partition_tree.mapToGlobal(pos))
             else:
@@ -970,7 +1055,7 @@ class QuickWindow(QWidget):
         if ok and text and text.strip(): self.db.rename_category(cat_id, text.strip()); self._update_partition_tree(); self._update_list() 
 
     def _del_category(self, cid):
-        c = self.db.conn.cursor()
+        c = self.db.conn.cursor() 
         c.execute("SELECT COUNT(*) FROM categories WHERE parent_id = ?", (cid,))
         child_count = c.fetchone()[0]
         msg = '确认删除此分类? (其中的内容将移至未分类)'
@@ -988,7 +1073,7 @@ class QuickWindow(QWidget):
 
     def _set_preset_tags(self, cat_id):
         current_tags = self.db.get_category_preset_tags(cat_id)
-        dlg = QDialog(self); dlg.setWindowTitle("🏷️ 设置预设标签"); dlg.setStyleSheet(f"background-color: {COLORS.get('bg_dark', '#2d2d2d')}; color: #EEE;"); dlg.setFixedSize(350, 150)
+        dlg = QDialog(self); dlg.setWindowTitle("设置预设标签"); dlg.setStyleSheet(f"background-color: {COLORS.get('bg_dark', '#2d2d2d')}; color: #EEE;"); dlg.setFixedSize(350, 150)
         
         layout = QVBoxLayout(dlg); layout.setContentsMargins(20, 20, 20, 20)
         info = QLabel("拖入该分类时自动绑定以下标签：\n(双击输入框选择历史标签)"); info.setStyleSheet("color: #888; font-size: 12px; margin-bottom: 5px;"); layout.addWidget(info)
@@ -1011,3 +1096,26 @@ class QuickWindow(QWidget):
             if tags_list: self.db.apply_preset_tags_to_category_items(cat_id, tags_list)
             self.data_changed.emit()
 
+    def _draw_book_mocha(self, p):
+        w, h = 56, 76
+        p.setBrush(QColor(245, 240, 225)); p.drawRoundedRect(QRectF(-w/2+6, -h/2+6, w, h), 3, 3)
+        grad = QLinearGradient(-w, -h, w, h)
+        grad.setColorAt(0, QColor(90, 60, 50)); grad.setColorAt(1, QColor(50, 30, 25))
+        p.setBrush(grad); p.drawRoundedRect(QRectF(-w/2, -h/2, w, h), 3, 3)
+        p.setBrush(QColor(120, 20, 30)); p.drawRect(QRectF(w/2 - 15, -h/2, 8, h))
+
+    def _draw_universal_pen(self, p):
+        w_pen, h_pen = 12, 46
+        c_light, c_mid, c_dark = QColor(180, 60, 70), QColor(140, 20, 30), QColor(60, 5, 10)
+        body_grad = QLinearGradient(-w_pen/2, 0, w_pen/2, 0)
+        body_grad.setColorAt(0.0, c_light); body_grad.setColorAt(0.5, c_mid); body_grad.setColorAt(1.0, c_dark)
+        path_body = QPainterPath()
+        path_body.addRoundedRect(QRectF(-w_pen/2, -h_pen/2, w_pen, h_pen), 5, 5)
+        p.setPen(Qt.NoPen); p.setBrush(body_grad); p.drawPath(path_body)
+        path_tip = QPainterPath(); tip_h = 14
+        path_tip.moveTo(-w_pen/2 + 3, h_pen/2); path_tip.lineTo(w_pen/2 - 3, h_pen/2); path_tip.lineTo(0, h_pen/2 + tip_h); path_tip.closeSubpath()
+        tip_grad = QLinearGradient(-5, 0, 5, 0)
+        tip_grad.setColorAt(0, QColor(240, 230, 180)); tip_grad.setColorAt(1, QColor(190, 170, 100))
+        p.setBrush(tip_grad); p.drawPath(path_tip)
+        p.setBrush(QColor(220, 200, 140)); p.drawRect(QRectF(-w_pen/2, h_pen/2 - 4, w_pen, 4))
+        p.setBrush(QColor(210, 190, 130)); p.drawRoundedRect(QRectF(-1.5, -h_pen/2 + 6, 3, 24), 1.5, 1.5)

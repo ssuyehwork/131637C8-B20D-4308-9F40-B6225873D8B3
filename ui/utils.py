@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import QApplication
 _icon_theme_colors = {
     'all_data.svg':      '#3498db',
     'today.svg':         '#2ecc71',
-    'uncategorized.svg': '#e67e22',
+    'uncategorized.svg': '#e67e22', # 注意：实际渲染使用的是 SVG 内部硬编码的四色
     'untagged.svg':      '#95a5a6',
     'bookmark.svg':      '#ff6b81',
     'trash.svg':         '#e74c3c',
@@ -24,55 +24,85 @@ _icon_theme_colors = {
     'pencil.svg':        '#aaaaaa',
     'clock.svg':         '#aaaaaa',
     
-    # 【新增】置顶图标配色
-    'pin_tilted.svg':    '#aaaaaa', # 未置顶：灰色
-    'pin_vertical.svg':  '#e74c3c',  # 已置顶：红色
+    # 分支/分组图标配色
+    'branch.svg':        '#9b59b6', 
     
-    # --- 悬浮球菜单配色 ---
-    'display.svg': '#81D4FA',  # 切换外观: 淡蓝色
-    'coffee.svg': '#BCAAA4',   # 摩卡: 浅棕色
-    'grid.svg': '#90A4AE',     # 黑金: 蓝灰色
-    'book.svg': '#9FA8DA',     # 皇家蓝: 薰衣草紫
-    'leaf.svg': '#A5D6A7',     # 抹茶: 淡绿色
-    'book-open.svg': '#FFCC80',# 手稿: 橘黄色
-    'zap.svg': '#FFEB3B',      # 快速笔记: 黄色
-    'monitor.svg': '#B0BEC5',  # 主界面: 蓝灰色
-    'action_add.svg': '#C5E1A5',# 新建: 淡绿色
-    'tag.svg': '#FFAB91',      # 标签: 橙红色
-    'power.svg': '#EF9A9A'     # 退出: 淡红色
+    'pin_tilted.svg':    '#aaaaaa', 
+    'pin_vertical.svg':  '#e74c3c',  
+    
+    'display.svg': '#81D4FA', 
+    'coffee.svg': '#BCAAA4',   
+    'grid.svg': '#90A4AE',     
+    'book.svg': '#9FA8DA',     
+    'leaf.svg': '#A5D6A7',     
+    'book-open.svg': '#FFCC80',
+    'zap.svg': '#FFEB3B',      
+    'monitor.svg': '#B0BEC5',  
+    'action_add.svg': '#C5E1A5',
+    'tag.svg': '#FFAB91',      
+    'power.svg': '#EF9A9A'     
 }
 
 # ==========================================
-# 💎 内置 SVG 图标数据 (无符号化)
+# 💎 内置 SVG 图标数据
 # ==========================================
 _system_icons = {
-    # --- 核心导航 ---
+    # [核心] 创意四色图标 (未分类): 按照图示复刻
+    # 四个圆角方块组成外围，中间叠加深灰色圆形和白色问号
+    'uncategorized.svg': """<svg viewBox="0 0 24 24" fill="none">
+        <!-- Top Left: Purple -->
+        <path d="M2 10a8 8 0 0 1 8-8h2v10H2V10z" fill="#9C27B0"/>
+        <!-- Top Right: Yellow -->
+        <path d="M14 2h8a2 2 0 0 1 2 2v8h-10V2z" fill="#FFC107"/>
+        <!-- Bottom Left: Cyan -->
+        <path d="M2 14v8a2 2 0 0 0 2 2h8V14H2z" fill="#00E5FF"/>
+        <!-- Bottom Right: Pink -->
+        <path d="M14 24h8a2 2 0 0 0 2-2v-8H14v10z" fill="#E91E63"/>
+        
+        <!-- Center Dark Circle -->
+        <circle cx="12" cy="12" r="7" fill="#333333"/>
+        
+        <!-- White Question Mark -->
+        <path d="M12 6.5c1.66 0 3 1.34 3 3 0 1.1-.9 2-2 2.5-.9.4-1 .9-1 1.5v.5h-2v-.5c0-1.1.9-2 2-2.5.9-.4 1-.9 1-1.5 0-.55-.45-1-1-1s-1 .45-1 1H9c0-1.66 1.34-3 3-3z" fill="white"/>
+        <circle cx="12" cy="16.5" r="1.25" fill="white"/>
+    </svg>""",
+
+    # 分支图标
+    'branch.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="5" r="3"></circle>
+        <path d="M12 8v5"></path>
+        <path d="M12 13l-5 4"></path>
+        <path d="M12 13l5 4"></path>
+        <circle cx="7" cy="19" r="3"></circle>
+        <circle cx="17" cy="19" r="3"></circle>
+    </svg>""",
+
+    # 兼容性定义
+    'folder.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="5" r="3"></circle>
+        <path d="M12 8v5"></path>
+        <path d="M12 13l-5 4"></path>
+        <path d="M12 13l5 4"></path>
+        <circle cx="7" cy="19" r="3"></circle>
+        <circle cx="17" cy="19" r="3"></circle>
+    </svg>""",
+
     'select.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>""",
     'all_data.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>""",
     'today.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>""",
-    'uncategorized.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>""",
     'untagged.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>""",
     'bookmark.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>""",
     'trash.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>""",
-    
-    # --- 窗口控制 ---
     'win_close.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>""",
     'win_max.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>""",
     'win_restore.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="10" height="10" rx="1"/><rect x="11" y="3" width="10" height="10" rx="1"/></svg>""",
     'win_min.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>""",
     'win_sidebar.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>""",
     'sidebar_right.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>""",
-
-    # --- 功能操作 ---
     'action_add.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>""",
     'action_edit.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>""",
-    
-    # 【新增】pin_tilted.svg: 倾斜、空心 (Outline)
     'pin_tilted.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" transform="rotate(45 12 12)"><path d="M16 12V8H8v4l-2 2v2h5v6l1 1 1-1v-6h5v-2l-2-2z"></path></svg>""",
-    
-    # 【新增】pin_vertical.svg: 垂直、实心 (Filled)
     'pin_vertical.svg': """<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1.03 1 1.03-1v-7H19v-2c-1.66 0-3-1.34-3-3z"></path></svg>""",
-    
     'action_fav.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>""",
     'action_fav_filled.svg': """<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>""",
     'action_eye.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>""",
@@ -80,23 +110,16 @@ _system_icons = {
     'action_delete.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>""",
     'action_export.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>""",
     'action_save.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>""",
-    
-    # --- 编辑器工具栏 ---
     'edit_undo.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>""",
     'edit_redo.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>""",
     'edit_list_ul.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>""",
     'edit_list_ol.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg>""",
     'edit_clear.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>""",
-    
-    # --- 分页/导航 ---
     'nav_first.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>""",
     'nav_prev.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>""",
     'nav_next.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>""",
     'nav_last.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>""",
-    
-    # --- 杂项 ---
     'tag.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>""",
-    'folder.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>""",
     'calendar.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>""",
     'clock.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>""",
     'star.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>""",
@@ -104,7 +127,6 @@ _system_icons = {
     'pin.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>""",
     'lock.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>""",
     'pencil.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>""",
-    # --- 悬浮球菜单 ---
     'display.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="12" rx="2" ry="2"/><line x1="3" y1="21" x2="21" y2="21"/><line x1="12" y1="15" x2="12" y2="21"/></svg>""",
     'coffee.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>""",
     'grid.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>""",
@@ -114,7 +136,14 @@ _system_icons = {
     'zap.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>""",
     'monitor.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>""",
     'power.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>""",
-    'palette.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>"""
+    'palette.svg': """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>""",
+    'grip_diagonal.svg': """<svg viewBox="0 0 20 20" fill="currentColor">
+        <circle cx="18" cy="18" r="1.2"/><circle cx="14" cy="18" r="1.2"/><circle cx="10" cy="18" r="1.2"/><circle cx="6" cy="18" r="1.2"/><circle cx="2" cy="18" r="1.2"/>
+        <circle cx="18" cy="14" r="1.2"/><circle cx="14" cy="14" r="1.2"/><circle cx="10" cy="14" r="1.2"/><circle cx="6" cy="14" r="1.2"/>
+        <circle cx="18" cy="10" r="1.2"/><circle cx="14" cy="10" r="1.2"/><circle cx="10" cy="10" r="1.2"/>
+        <circle cx="18" cy="6" r="1.2"/><circle cx="14" cy="6" r="1.2"/>
+        <circle cx="18" cy="2" r="1.2"/>
+    </svg>"""
 }
 
 # 全局图标缓存
@@ -181,46 +210,32 @@ def create_clear_button_icon():
     专门为 QLineEdit 的 clearButton 生成一个经典的 '×' 图标,
     并返回其文件路径, 供 QSS 使用。
     """
-    return get_svg_path('clear.svg', '#999999') # 使用封装后的函数
-
-def get_svg_path(icon_name, color):
-    """
-    根据图标名和颜色生成一个 SVG 文件路径，供 QSS 使用。
-    """
     import tempfile
-    import os
-    from PyQt5.QtCore import QByteArray
     
-    # 获取 SVG 数据
-    svg_data = ""
-    if icon_name == 'clear.svg':
-        svg_data = """
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-        """
-    elif icon_name in _system_icons:
-        svg_data = _system_icons[icon_name]
+    # 定义一个经典的 '×' SVG
+    svg_data = """
+    <svg viewBox="0 0 24 24" fill="none" stroke="#999999" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+    </svg>
+    """
     
-    if not svg_data:
-        return ""
-
-    # 替换颜色
-    svg_data = svg_data.replace("currentColor", color)
-    
-    # 生成临时文件路径
+    # 检查缓存
     temp_dir = tempfile.gettempdir()
-    safe_color = color.replace('#', '')
-    filename = f"qss_icon_{icon_name}_{safe_color}.svg"
-    icon_path = os.path.join(temp_dir, filename).replace("\\", "/")
+    icon_path = os.path.join(temp_dir, "clear_icon.png")
     
-    if not os.path.exists(icon_path):
-        try:
-            with open(icon_path, 'w', encoding='utf-8') as f:
-                f.write(svg_data)
-        except Exception:
-            pass
-            
-    return icon_path
-
+    if os.path.exists(icon_path):
+        return icon_path.replace("\\", "/") # 确保路径格式正确
+        
+    renderer = QSvgRenderer(QByteArray(svg_data.encode('utf-8')))
+    pixmap = QPixmap(32, 32)
+    pixmap.fill(Qt.transparent)
+    
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.end()
+    
+    pixmap.save(icon_path, "PNG")
+    
+    # 确保 QSS 能正确使用路径
+    return icon_path.replace("\\", "/")
