@@ -51,6 +51,7 @@ class MainWindow(QWidget):
         
         self.open_dialogs = []
         self.is_metadata_panel_visible = False
+        self.normal_geometry = None
         
         self.setWindowFlags(
             Qt.FramelessWindowHint | 
@@ -77,12 +78,12 @@ class MainWindow(QWidget):
         self.container.setStyleSheet(STYLES['main_window'])
         root_layout.addWidget(self.container)
         
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(25)
-        shadow.setXOffset(0)
-        shadow.setYOffset(4)
-        shadow.setColor(QColor(0, 0, 0, 100))
-        self.container.setGraphicsEffect(shadow)
+        self.shadow_effect = QGraphicsDropShadowEffect(self)
+        self.shadow_effect.setBlurRadius(25)
+        self.shadow_effect.setXOffset(0)
+        self.shadow_effect.setYOffset(4)
+        self.shadow_effect.setColor(QColor(0, 0, 0, 100))
+        self.container.setGraphicsEffect(self.shadow_effect)
         
         outer_layout = QVBoxLayout(self.container)
         outer_layout.setContentsMargins(0, 0, 0, 0)
@@ -780,13 +781,28 @@ class MainWindow(QWidget):
     def mouseDoubleClickEvent(self, event):
         if event.y() < 40: self._toggle_maximize()
         
+    def _get_screen_geometry(self):
+        screen = QApplication.screenAt(self.pos())
+        if not screen:
+            screen = QApplication.primaryScreen()
+        return screen.availableGeometry()
+
     def _toggle_maximize(self):
         if self.isMaximized():
-            self.showNormal()
+            self.setGeometry(self.normal_geometry)
+            self.layout().setContentsMargins(12, 12, 12, 12)
+            self.container.setGraphicsEffect(self.shadow_effect)
             self.header.set_maximized_state(False)
+            self.normal_geometry = None
+            super().setWindowState(Qt.WindowNoState)
         else:
-            self.showMaximized()
+            self.normal_geometry = self.geometry()
+            screen_geometry = self._get_screen_geometry()
+            self.setGeometry(screen_geometry)
+            self.layout().setContentsMargins(0, 0, 0, 0)
+            self.container.setGraphicsEffect(None)
             self.header.set_maximized_state(True)
+            super().setWindowState(Qt.WindowMaximized)
 
     def closeEvent(self, event):
         self._save_window_state(); self.closing.emit(); self.hide(); event.ignore()
