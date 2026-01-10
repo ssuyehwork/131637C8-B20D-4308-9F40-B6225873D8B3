@@ -77,7 +77,7 @@ class MetadataDisplay(QWidget):
             val.setStyleSheet("font-size: 12px; color: #FFF; border: none; font-weight: bold; background: transparent;")
             row_layout.addWidget(lbl)
             row_layout.addWidget(val)
-            row.setStyleSheet(f"QWidget {{ background-color: transparent; }} #CapsuleRow {{ background-color: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; }}")
+            row.setStyleSheet(f"QWidget {{ background-color: transparent; }} #CapsuleRow {{ background-color: {COLORS['bg_dark']}; border: 1px solid {COLORS['bg_light']}; border-radius: 10px; }}")
             self.layout.addWidget(row)
             self.rows[key] = val
 
