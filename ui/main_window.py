@@ -687,7 +687,7 @@ class MainWindow(QWidget):
             menu.addAction(create_svg_icon('bookmark.svg', '#ff6b81'), '取消书签' if data['is_favorite'] else '添加书签', self._do_fav)
             menu.addSeparator()
             cat_menu = menu.addMenu(create_svg_icon('branch.svg', '#cccccc'), '移动到分类')
-            cat_menu.addAction('⚠️ 未分类', lambda: self._move_to_category(None))
+            cat_menu.addAction(create_svg_icon('uncategorized.svg'), '未分类', lambda: self._move_to_category(None))
             for cat in self.service.get_categories(): cat_menu.addAction(create_svg_icon('branch.svg', cat['color']), f'{cat["name"]}', lambda cid=cat["id"]: self._move_to_category(cid))
             menu.addSeparator()
             if not is_locked: menu.addAction(create_svg_icon('action_delete.svg', '#e74c3c'), '移至回收站', self._do_del)
