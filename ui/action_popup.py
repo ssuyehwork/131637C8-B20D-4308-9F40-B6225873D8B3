@@ -87,7 +87,7 @@ class ActionPopup(QWidget):
         is_favorite = idea_data['is_favorite'] == 1
         active_tags = self.service.get_tags(self.current_idea_id)
         self.common_tags_bar.reload_tags(active_tags)
-        if is_favorite: self.btn_bookmark.setIcon(create_svg_icon("bookmark.svg", COLORS['pink']))
+        if is_favorite: self.btn_bookmark.setIcon(create_svg_icon("bookmark.svg", "#ff6b81"))
         else: self.btn_bookmark.setIcon(create_svg_icon("bookmark.svg", "#BBB"))
         self.container.adjustSize()
         self.resize(self.container.size() + QSize(10, 10))
@@ -122,7 +122,7 @@ class ActionPopup(QWidget):
 
             # 手动切换到相反状态
             if not is_currently_favorite:
-                self.btn_bookmark.setIcon(create_svg_icon("bookmark.svg", COLORS['pink']))
+                self.btn_bookmark.setIcon(create_svg_icon("bookmark.svg", "#ff6b81"))
             else:
                 self.btn_bookmark.setIcon(create_svg_icon("bookmark.svg", "#BBB"))
 
