@@ -123,7 +123,7 @@ class AppManager(QObject):
         self.quick_window.toggle_main_window_requested.connect(self.toggle_main_window)
         
         self.popup = ActionPopup(self.service) 
-        self.popup.request_favorite.connect(self._handle_popup_favorite)
+        self.popup.request_bookmark.connect(self._handle_popup_bookmark)
         self.popup.request_tag_toggle.connect(self._handle_popup_tag_toggle)
         self.popup.request_manager.connect(self._open_common_tags_manager)
         
@@ -194,7 +194,7 @@ class AppManager(QObject):
         self.ball.trigger_clipboard_feedback()
         if self.popup: self.popup.show_at_mouse(idea_id)
 
-    def _handle_popup_favorite(self, idea_id):
+    def _handle_popup_bookmark(self, idea_id):
         idea_data = self.service.get_idea(idea_id)
         if not idea_data: return
         is_favorite = idea_data['is_favorite'] == 1
