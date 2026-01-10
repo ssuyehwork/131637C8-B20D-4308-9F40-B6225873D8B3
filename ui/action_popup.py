@@ -115,8 +115,19 @@ class ActionPopup(QWidget):
 
     def _on_bookmark_clicked(self):
         if self.current_idea_id:
+            # 立即提供视觉反馈
+            idea_data = self.service.get_idea(self.current_idea_id)
+            if not idea_data: return
+            is_currently_favorite = idea_data['is_favorite'] == 1
+
+            # 手动切换到相反状态
+            if not is_currently_favorite:
+                self.btn_bookmark.setIcon(create_svg_icon("bookmark.svg", COLORS['pink']))
+            else:
+                self.btn_bookmark.setIcon(create_svg_icon("bookmark.svg", "#BBB"))
+
+            # 发送信号让后台处理数据
             self.request_bookmark.emit(self.current_idea_id)
-            self._refresh_ui_state()
             self.hide_timer.start(1500)
 
     def _on_quick_tag_clicked(self, tag_name):
