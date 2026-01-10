@@ -10,7 +10,7 @@ from ui.writing_animation import WritingAnimationWidget
 from ui.utils import create_svg_icon
 
 class ActionPopup(QWidget):
-    request_favorite = pyqtSignal(int)
+    request_bookmark = pyqtSignal(int)
     request_tag_toggle = pyqtSignal(int, str)
     request_manager = pyqtSignal()
 
@@ -52,13 +52,13 @@ class ActionPopup(QWidget):
         line.setStyleSheet("color: #555; border:none; background: transparent;")
         layout.addWidget(line)
 
-        self.btn_fav = QPushButton()
-        self.btn_fav.setToolTip("收藏")
-        self.btn_fav.setFixedSize(20, 20)
-        self.btn_fav.setCursor(Qt.PointingHandCursor)
-        self.btn_fav.setStyleSheet("background: transparent; border: none;")
-        self.btn_fav.clicked.connect(self._on_fav_clicked)
-        layout.addWidget(self.btn_fav)
+        self.btn_bookmark = QPushButton()
+        self.btn_bookmark.setToolTip("书签")
+        self.btn_bookmark.setFixedSize(20, 20)
+        self.btn_bookmark.setCursor(Qt.PointingHandCursor)
+        self.btn_bookmark.setStyleSheet("background: transparent; border: none;")
+        self.btn_bookmark.clicked.connect(self._on_bookmark_clicked)
+        layout.addWidget(self.btn_bookmark)
 
         self.common_tags_bar = CommonTags(self.service) 
         self.common_tags_bar.tag_clicked.connect(self._on_quick_tag_clicked)
@@ -87,8 +87,8 @@ class ActionPopup(QWidget):
         is_favorite = idea_data['is_favorite'] == 1
         active_tags = self.service.get_tags(self.current_idea_id)
         self.common_tags_bar.reload_tags(active_tags)
-        if is_favorite: self.btn_fav.setIcon(create_svg_icon("star_filled.svg", COLORS['warning']))
-        else: self.btn_fav.setIcon(create_svg_icon("star.svg", "#BBB"))
+        if is_favorite: self.btn_bookmark.setIcon(create_svg_icon("bookmark.svg", "#ff6b81"))
+        else: self.btn_bookmark.setIcon(create_svg_icon("bookmark.svg", "#BBB"))
         self.container.adjustSize()
         self.resize(self.container.size() + QSize(10, 10))
 
@@ -113,10 +113,21 @@ class ActionPopup(QWidget):
         
         self.hide_timer.start(3500)
 
-    def _on_fav_clicked(self):
+    def _on_bookmark_clicked(self):
         if self.current_idea_id:
-            self.request_favorite.emit(self.current_idea_id)
-            self._refresh_ui_state()
+            # 立即提供视觉反馈
+            idea_data = self.service.get_idea(self.current_idea_id)
+            if not idea_data: return
+            is_currently_favorite = idea_data['is_favorite'] == 1
+            
+            # 手动切换到相反状态
+            if not is_currently_favorite:
+                self.btn_bookmark.setIcon(create_svg_icon("bookmark.svg", "#ff6b81"))
+            else:
+                self.btn_bookmark.setIcon(create_svg_icon("bookmark.svg", "#BBB"))
+
+            # 发送信号让后台处理数据
+            self.request_bookmark.emit(self.current_idea_id)
             self.hide_timer.start(1500)
 
     def _on_quick_tag_clicked(self, tag_name):
@@ -132,9 +143,10 @@ class ActionPopup(QWidget):
     def _animate_hide(self):
         self.hide()
 
-    # 失去焦点时立即关闭
+    # 失去焦点时，如果鼠标不在窗口内，则关闭
     def focusOutEvent(self, event):
-        self._animate_hide()
+        if not self.geometry().contains(QCursor.pos()):
+            self._animate_hide()
         super().focusOutEvent(event)
 
     def enterEvent(self, event):
