@@ -132,9 +132,10 @@ class ActionPopup(QWidget):
     def _animate_hide(self):
         self.hide()
 
-    # 失去焦点时立即关闭
+    # 失去焦点时，如果鼠标不在窗口内，则关闭
     def focusOutEvent(self, event):
-        self._animate_hide()
+        if not self.geometry().contains(QCursor.pos()):
+            self._animate_hide()
         super().focusOutEvent(event)
 
     def enterEvent(self, event):
