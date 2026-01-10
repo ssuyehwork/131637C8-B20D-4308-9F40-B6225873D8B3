@@ -123,6 +123,7 @@ class MainWindow(QWidget):
         self.metadata_panel.tag_added.connect(self._handle_tag_add)
 
         self.main_splitter = QSplitter(Qt.Horizontal)
+        self.main_splitter.setHandleWidth(1)
         self.main_splitter.setChildrenCollapsible(False)
         self.main_splitter.addWidget(self.sidebar)
 

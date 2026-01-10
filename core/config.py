@@ -79,12 +79,7 @@ MODERN_TOOLTIP = f"""
 STYLES = {
     'main_window': f"""
         QWidget {{ background-color: {COLORS['bg_dark']}; color: {COLORS['text']}; font-family: "Microsoft YaHei", "Segoe UI", sans-serif; }}
-        QSplitter::handle {{
-            background-color: {COLORS['bg_light']};
-            width: 1px;
-            margin: 0px;
-            padding: 0px;
-        }}
+        QSplitter::handle {{ background-color: {COLORS['bg_light']}; }}
         {GLOBAL_SCROLLBAR}
         {MODERN_TOOLTIP}
     """,
