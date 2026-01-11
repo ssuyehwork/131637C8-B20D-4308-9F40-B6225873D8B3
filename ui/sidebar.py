@@ -22,6 +22,7 @@ class Sidebar(QTreeWidget):
     filter_changed = pyqtSignal(str, object)
     data_changed = pyqtSignal()
     new_data_requested = pyqtSignal(int)
+    items_moved = pyqtSignal(list)
 
     def __init__(self, service, parent=None):
         super().__init__(parent)
@@ -228,7 +229,7 @@ class Sidebar(QTreeWidget):
                     elif key == 'trash': self.db.set_deleted(iid, True)
                     elif key == 'bookmark': self.db.set_favorite(iid, True)
                 
-                self.data_changed.emit()
+                self.items_moved.emit(ids_to_process)
                 self.refresh()
                 e.acceptProposedAction()
             except Exception as err:

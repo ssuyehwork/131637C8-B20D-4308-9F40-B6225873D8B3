@@ -117,6 +117,7 @@ class MainWindow(QWidget):
         self.sidebar.filter_changed.connect(self._set_filter)
         self.sidebar.data_changed.connect(self._load_data)
         self.sidebar.new_data_requested.connect(self._on_new_data_in_category_requested)
+        self.sidebar.items_moved.connect(self._handle_items_moved)
         self.sidebar.setMinimumWidth(200)
         
         # 中间卡片区 (包含操作栏)
@@ -174,6 +175,15 @@ class MainWindow(QWidget):
         if not self.selected_ids or not tags: return
         self.service.add_tags_to_multiple_ideas(list(self.selected_ids), tags)
         self._refresh_all()
+
+    def _handle_items_moved(self, idea_ids):
+        """轻量级处理器，仅从视图中移除卡片"""
+        if not idea_ids: return
+        for iid in idea_ids:
+            self.card_list_view.remove_card(iid)
+            if iid in self.selected_ids:
+                self.selected_ids.remove(iid)
+        self._update_ui_state()
 
     def _set_page(self, page_num):
         if page_num < 1: page_num = 1
