@@ -10,6 +10,7 @@ from PyQt5.QtGui import QFont, QColor, QPixmap, QPainter, QIcon, QCursor
 from core.config import COLORS
 from ui.advanced_tag_selector import AdvancedTagSelector
 from ui.utils import create_svg_icon
+from core.settings import load_setting, save_setting
 
 class ClickableLineEdit(QLineEdit):
     doubleClicked = pyqtSignal()
@@ -214,6 +215,13 @@ class Sidebar(QTreeWidget):
                 if not d: return
                 key, val = d
                 
+                # [修正] 拖拽也需要更新最近使用列表
+                if key == 'category':
+                    recent_cats = load_setting('recent_categories', [])
+                    if val not in recent_cats: recent_cats.insert(0, val)
+                    else: recent_cats.remove(val); recent_cats.insert(0, val)
+                    save_setting('recent_categories', recent_cats)
+
                 for iid in ids_to_process:
                     if key == 'category': self.db.move_category(iid, val)
                     elif key == 'uncategorized': self.db.move_category(iid, None)

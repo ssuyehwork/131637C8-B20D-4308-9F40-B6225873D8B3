@@ -672,9 +672,17 @@ class QuickWindow(QWidget):
 
         if target_type == 'bookmark': self.db.set_favorite(idea_id, True)
         elif target_type == 'trash': self.db.set_deleted(idea_id, True)
-        elif target_type == 'uncategorized': self.db.move_category(idea_id, None)
-        elif target_type == 'partition': self.db.move_category(idea_id, cat_id)
-        
+        elif target_type == 'uncategorized':
+            self.db.move_category(idea_id, None)
+        elif target_type == 'partition':
+            self.db.move_category(idea_id, cat_id)
+            # [修正] 拖拽也需要更新最近使用列表
+            if cat_id is not None:
+                recent_cats = load_setting('recent_categories', [])
+                if cat_id in recent_cats: recent_cats.remove(cat_id)
+                recent_cats.insert(0, cat_id)
+                save_setting('recent_categories', recent_cats)
+
         self._update_list(); self._update_partition_tree()
 
     def _save_partition_order(self):
