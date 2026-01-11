@@ -258,10 +258,12 @@ class IdeaCard(QFrame):
         pixmap = self.grab().scaledToWidth(200, Qt.SmoothTransformation)
         drag.setPixmap(pixmap)
 
-        # [修改] 将热点固定在左下角并偏移，使快照显示在鼠标右上角
-        offset_x = -50
-        offset_y = -50
-        drag.setHotSpot(pixmap.rect().bottomLeft() + QPoint(offset_x, offset_y))
+        # [修正] 修正热点计算逻辑，精确控制快照在光标右上角的位置
+        offset = 30
+        # 热点是快照上与光标对齐的点。
+        # 将其设置为(-offset, pixmap.height() + offset) 可以
+        # 将快照的左下角精确定位在(光标.x + offset, 光标.y - offset)
+        drag.setHotSpot(QPoint(-offset, pixmap.height() + offset))
 
         # [修改] 将操作类型改为CopyAction以显示"+"号光标
         drag.exec_(Qt.CopyAction)
