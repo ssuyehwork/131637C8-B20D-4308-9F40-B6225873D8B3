@@ -683,7 +683,17 @@ class QuickWindow(QWidget):
                 recent_cats.insert(0, cat_id)
                 save_setting('recent_categories', recent_cats)
 
-        self._update_list(); self._update_partition_tree()
+        # [优化] 拖拽后只移除卡片并更新分类计数，避免全量刷新
+        # 1. 从列表中找到并移除被拖拽的项
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            data = item.data(Qt.UserRole)
+            if data and data['id'] == idea_id:
+                self.list_widget.takeItem(i)
+                break
+
+        # 2. 更新分类树以反映数量变化
+        self._update_partition_tree()
 
     def _save_partition_order(self):
         update_list = []
