@@ -255,10 +255,11 @@ class IdeaCard(QFrame):
         mime.setData('application/x-idea-id', str(self.id).encode())
         drag.setMimeData(mime)
 
-        # [修正] 创建一个1x1的透明图像来满足拖拽启动的必要条件，同时实现“隐藏快照”的效果
-        pixmap = QPixmap(1, 1)
-        pixmap.fill(Qt.transparent)
+        pixmap = self.grab().scaledToWidth(200, Qt.SmoothTransformation)
         drag.setPixmap(pixmap)
+
+        offset = 25
+        drag.setHotSpot(QPoint(-offset, pixmap.height() + offset))
 
         # [修改] 将操作类型改为CopyAction以显示"+"号光标
         drag.exec_(Qt.CopyAction)
