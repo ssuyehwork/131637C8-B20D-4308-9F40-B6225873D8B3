@@ -751,9 +751,11 @@ class MainWindow(QWidget):
             event.accept()
             
     def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.NoButton:
+        if not self.isMaximized() and event.buttons() == Qt.NoButton:
             self._set_cursor_for_resize(self._get_resize_area(event.pos()))
-            event.accept(); return
+            event.accept()
+            return
+
         if event.buttons() == Qt.LeftButton:
             if self.resize_area:
                 d = event.globalPos() - self.resize_start_pos; r = self.resize_start_geometry; nr = r.adjusted(0,0,0,0)
