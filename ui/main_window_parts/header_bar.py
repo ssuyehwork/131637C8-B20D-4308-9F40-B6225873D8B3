@@ -30,6 +30,31 @@ class HeaderBar(QWidget):
         self.set_maximized_state(False) # 必须在 _init_ui 之后调用
 
     def _init_ui(self):
+        # 预设基础样式，包含对属性选择器的支持
+        self.setStyleSheet(f"""
+            QWidget#HeaderBar {{
+                background-color: {COLORS['bg_mid']};
+                border-bottom: 1px solid {COLORS['bg_light']};
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+            }}
+            QWidget#HeaderBar[maximized="true"] {{
+                border-top-left-radius: 0px;
+                border-top-right-radius: 0px;
+            }}
+            QPushButton {{
+                background: transparent;
+                border: none;
+            }}
+            #CloseBtn:hover {{
+                background-color: #e81123;
+                border-top-right-radius: 8px;
+            }}
+            QWidget#HeaderBar[maximized="true"] #CloseBtn:hover {{
+                border-top-right-radius: 0px;
+            }}
+        """)
+
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 0, 10, 0)
         layout.setSpacing(0)
@@ -211,35 +236,6 @@ class HeaderBar(QWidget):
         # 强制更新布局和渲染
         self.update()
 
-    def _init_ui(self):
-        # 预设基础样式，包含对属性选择器的支持
-        self.setObjectName("HeaderBar")
-        radius_v = "0px" if self.property("maximized") else "8px"
-        self.setStyleSheet(f"""
-            QWidget#HeaderBar {{
-                background-color: {COLORS['bg_mid']};
-                border-bottom: 1px solid {COLORS['bg_light']};
-                border-top-left-radius: 8px;
-                border-top-right-radius: 8px;
-            }}
-            QWidget#HeaderBar[maximized="true"] {{
-                border-top-left-radius: 0px;
-                border-top-right-radius: 0px;
-            }}
-            QPushButton {{
-                background: transparent;
-                border: none;
-            }}
-            #CloseBtn:hover {{ 
-                background-color: #e81123; 
-                border-top-right-radius: 8px; 
-            }}
-            QWidget#HeaderBar[maximized="true"] #CloseBtn:hover {{
-                border-top-right-radius: 0px;
-            }}
-        """)
-        
-        layout = QHBoxLayout(self)
 
     def set_filter_active(self, active):
         """外部调用：同步筛选按钮状态"""
