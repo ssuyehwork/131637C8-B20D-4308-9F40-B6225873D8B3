@@ -680,11 +680,11 @@ class QuickWindow(QWidget):
             if status.get(idea_id, 0): return
 
         if target_type == 'bookmark': self.db.set_favorite(idea_id, True)
-        elif target_type == 'trash': self.db.set_deleted(idea_id, True)
+        elif target_type == 'trash': self.db.set_deleted(idea_id, True, emit_signal=False)
         elif target_type == 'uncategorized':
-            self.db.move_category(idea_id, None)
+            self.db.move_category(idea_id, None, emit_signal=False)
         elif target_type == 'partition':
-            self.db.move_category(idea_id, cat_id)
+            self.db.move_category(idea_id, cat_id, emit_signal=False)
             # [修正] 拖拽也需要更新最近使用列表
             if cat_id is not None:
                 recent_cats = load_setting('recent_categories', [])
@@ -692,7 +692,15 @@ class QuickWindow(QWidget):
                 recent_cats.insert(0, cat_id)
                 save_setting('recent_categories', recent_cats)
 
-        self._update_list(); self._update_partition_tree()
+        # [修正] 使用轻量级操作替换重量级刷新，解决延迟问题
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            # 注意：快速窗口的拖拽是单项的，所以可以直接用 `currentItem`
+            if item and item.data(Qt.UserRole)['id'] == idea_id:
+                self.list_widget.takeItem(i)
+                break
+
+        self._update_partition_tree()
 
     def _save_partition_order(self):
         update_list = []
