@@ -30,6 +30,15 @@ class HeaderBar(QWidget):
         self.set_maximized_state(False) # 必须在 _init_ui 之后调用
 
     def _init_ui(self):
+        # 核心修复：确保UI初始化是幂等的。
+        # 无论此方法被调用多少次，都先彻底清空现有布局和子控件。
+        if self.layout() is not None:
+            while self.layout().count():
+                item = self.layout().takeAt(0)
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
+
         # 预设基础样式，包含对属性选择器的支持
         self.setStyleSheet(f"""
             QWidget#HeaderBar {{
