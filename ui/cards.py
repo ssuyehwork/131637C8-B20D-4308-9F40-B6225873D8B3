@@ -255,8 +255,9 @@ class IdeaCard(QFrame):
         mime.setData('application/x-idea-id', str(self.id).encode())
         drag.setMimeData(mime)
 
-        pixmap = self.grab().scaledToWidth(200, Qt.SmoothTransformation)
-        drag.setPixmap(pixmap)
+        # [修改] 根据用户需求，不再显示拖拽时的卡片快照
+        # pixmap = self.grab().scaledToWidth(200, Qt.SmoothTransformation)
+        # drag.setPixmap(pixmap)
 
         # [修正] 修正热点计算逻辑，精确控制快照在光标右上角的位置
         offset = 25

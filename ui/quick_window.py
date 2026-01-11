@@ -102,8 +102,9 @@ class DraggableListWidget(QListWidget):
         # [新增] 创建并设置自定义拖拽快照和热点
         item_widget = self.itemWidget(item)
         if item_widget:
-            pixmap = item_widget.grab()
-            drag.setPixmap(pixmap)
+            # [修改] 根据用户需求，不再显示拖拽时的卡片快照
+            # pixmap = item_widget.grab()
+            # drag.setPixmap(pixmap)
 
             offset = 25
             # 使用与主窗口卡片完全相同的逻辑来设置热点
