@@ -88,15 +88,29 @@ class DraggableListWidget(QListWidget):
     def startDrag(self, supportedActions):
         item = self.currentItem()
         if not item: return
+
         data = item.data(Qt.UserRole)
         if not data: return
         idea_id = data['id']
         
         mime = QMimeData()
         mime.setData('application/x-idea-id', str(idea_id).encode())
+
         drag = QDrag(self)
         drag.setMimeData(mime)
-        drag.exec_(Qt.MoveAction)
+
+        # [新增] 创建并设置自定义拖拽快照和热点
+        item_widget = self.itemWidget(item)
+        if item_widget:
+            pixmap = item_widget.grab()
+            drag.setPixmap(pixmap)
+
+            offset = 25
+            # 使用与主窗口卡片完全相同的逻辑来设置热点
+            drag.setHotSpot(QPoint(-offset, pixmap.height() + offset))
+
+        # [修改] 将操作类型改为CopyAction以显示"+"号光标
+        drag.exec_(Qt.CopyAction)
 
 class DropTreeWidget(QTreeWidget):
     item_dropped = pyqtSignal(int, int)
