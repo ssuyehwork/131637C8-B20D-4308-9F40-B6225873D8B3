@@ -38,7 +38,7 @@ class Sidebar(QTreeWidget):
 
         self.setStyleSheet(f"""
             QTreeWidget {{
-                background-color: {COLORS['bg_mid']};
+                background-color: transparent;
                 color: #e0e0e0;
                 border: none;
                 font-size: 13px;
