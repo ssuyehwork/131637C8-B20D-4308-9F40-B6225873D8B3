@@ -2,7 +2,7 @@
 # ui/cards.py
 import sys
 from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QApplication, QSizePolicy, QWidget
-from PyQt5.QtCore import Qt, pyqtSignal, QMimeData, QSize
+from PyQt5.QtCore import Qt, pyqtSignal, QMimeData, QSize, QPoint
 from PyQt5.QtGui import QDrag, QPixmap, QImage, QPainter
 from core.config import STYLES, COLORS
 from ui.utils import create_svg_icon
@@ -254,10 +254,17 @@ class IdeaCard(QFrame):
         mime.setData('application/x-idea-ids', (','.join(map(str, ids_to_move))).encode('utf-8'))
         mime.setData('application/x-idea-id', str(self.id).encode())
         drag.setMimeData(mime)
+
         pixmap = self.grab().scaledToWidth(200, Qt.SmoothTransformation)
         drag.setPixmap(pixmap)
-        drag.setHotSpot(e.pos())
-        drag.exec_(Qt.MoveAction)
+
+        # [修改] 将热点固定在左下角并偏移，使快照显示在鼠标右上角
+        offset_x = -50
+        offset_y = -50
+        drag.setHotSpot(pixmap.rect().bottomLeft() + QPoint(offset_x, offset_y))
+
+        # [修改] 将操作类型改为CopyAction以显示"+"号光标
+        drag.exec_(Qt.CopyAction)
         
     def mouseReleaseEvent(self, e):
         if self._is_potential_click and e.button() == Qt.LeftButton:
