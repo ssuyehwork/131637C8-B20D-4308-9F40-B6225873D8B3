@@ -789,43 +789,36 @@ class MainWindow(QWidget):
         return screen.availableGeometry()
 
     def _toggle_maximize(self):
-        self.setUpdatesEnabled(False)  # 锁定 UI 更新，防止几何变换期间的闪烁和重影
+        self.setUpdatesEnabled(False)
         try:
             if self.isMaximized():
+                # --- 恢复窗口 ---
+                # 1. 首先，让系统恢复窗口状态
+                super().setWindowState(Qt.WindowNoState)
+
+                # 2. 然后，应用我们自定义的几何形状和样式
                 if self.normal_geometry:
                     self.setGeometry(self.normal_geometry)
-                else:
-                    screen_geo = self._get_screen_geometry()
-                    self.resize(1000, 600)
-                    qr = self.frameGeometry()
-                    cp = screen_geo.center()
-                    qr.moveCenter(cp)
-                    self.move(qr.topLeft())
-                
                 self.layout().setContentsMargins(12, 12, 12, 12)
                 self._create_shadow_effect()
                 self.header.set_maximized_state(False)
-                self.normal_geometry = None
-                super().setWindowState(Qt.WindowNoState)
+                self.normal_geometry = None # 清除已保存的几何数据
             else:
+                # --- 最大化窗口 ---
+                # 1. 在最大化之前保存当前几何形状
                 self.normal_geometry = self.geometry()
-                screen_geometry = self._get_screen_geometry()
-                self.setGeometry(screen_geometry)
-                self.layout().setContentsMargins(0, 0, 0, 0)
                 
-                # 彻底清理阴影
-                if hasattr(self, 'shadow_effect') and self.shadow_effect:
-                    try:
-                        self.container.setGraphicsEffect(None)
-                        self.shadow_effect = None
-                    except RuntimeError:
-                        self.shadow_effect = None
-                    
-                self.header.set_maximized_state(True)
+                # 2. 让系统最大化窗口
                 super().setWindowState(Qt.WindowMaximized)
+
+                # 3. 为最大化状态应用自定义样式
+                self.layout().setContentsMargins(0, 0, 0, 0)
+                if hasattr(self, 'shadow_effect') and self.shadow_effect:
+                    self.container.setGraphicsEffect(None)
+                    self.shadow_effect = None
+                self.header.set_maximized_state(True)
         finally:
-            self.setUpdatesEnabled(True)  # 解锁渲染
-            self.container.update()
+            self.setUpdatesEnabled(True)
             self.update()
 
     def closeEvent(self, event):
