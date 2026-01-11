@@ -83,57 +83,69 @@ except ImportError:
 class DraggableListWidget(QListWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        # 启用拖拽，但我们将手动处理启动
         self.setDragEnabled(True)
-        # 启用扩展多选（按住Ctrl或Shift）
+        # 启用多选
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.drag_start_pos = QPoint()
 
-    def startDrag(self, supportedActions):
-        item = self.currentItem()
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.drag_start_pos = event.pos()
+        # 调用父类实现以确保正常的点击和选择行为
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        # 检查是否是左键按下的移动，并且移动距离超过了系统阈值
+        if not (event.buttons() & Qt.LeftButton):
+            return
+        if (event.pos() - self.drag_start_pos).manhattanLength() < QApplication.startDragDistance():
+            # 在未达到拖拽阈值时，让父类处理，这可能包括滑动选择
+            # 但一旦拖拽开始，我们就接管
+            super().mouseMoveEvent(event)
+            return
+
+        # --- 手动发起拖拽 ---
+        drag = QDrag(self)
+        mime = QMimeData()
+
+        item = self.itemAt(self.drag_start_pos)
         if not item:
             return
 
-        # 关键逻辑：如果开始拖拽的项目本身未被选中，
-        # 那么就清空所有其他选中项，并只选中当前这一个。
-        # 这可以防止意外的“滑动多选”行为。
-        if not item.isSelected():
-            self.clearSelection()
-            item.setSelected(True)
+        # 核心逻辑：判断拖拽的是否是已选项
+        is_dragging_selected_item = item.isSelected()
 
-        selected_items = self.selectedItems()
-        if not selected_items:
-            return
-
-        # 获取所有选中项的ID
         ids_to_move = []
-        for selected_item in selected_items:
-            data = selected_item.data(Qt.UserRole)
+        if is_dragging_selected_item:
+            # 如果拖拽的是一个已选项，则移动所有已选项
+            for selected_item in self.selectedItems():
+                data = selected_item.data(Qt.UserRole)
+                if data and 'id' in data:
+                    ids_to_move.append(data['id'])
+        else:
+            # 如果拖拽的是一个未选项，则只移动这一个
+            data = item.data(Qt.UserRole)
             if data and 'id' in data:
-                ids_to_move.append(data['id'])
-        
+                ids_to_move = [data['id']]
+
         if not ids_to_move:
             return
 
-        # 使用当前拖拽项的ID作为单ID后备
-        current_id = 0
-        current_data = item.data(Qt.UserRole)
-        if current_data:
-            current_id = current_data['id']
-
-        mime = QMimeData()
-        # 设置兼容主窗口的MIME类型，包含所有选中的ID
+        # 设置与主窗口兼容的数据
         mime.setData('application/x-idea-ids', (','.join(map(str, ids_to_move))).encode('utf-8'))
-        # 同时保留单个ID的MIME类型作为后备
-        mime.setData('application/x-idea-id', str(current_id).encode())
 
-        drag = QDrag(self)
+        # 为了安全，也设置单ID后备
+        current_id_str = str(ids_to_move[0]) if ids_to_move else "0"
+        mime.setData('application/x-idea-id', current_id_str.encode())
+
         drag.setMimeData(mime)
 
-        # 使用CopyAction，这与主窗口的行为一致，并显示"+"号光标
+        # 使用CopyAction，与主窗口保持一致
         drag.exec_(Qt.CopyAction)
 
 class DropTreeWidget(QTreeWidget):
-    # 修改信号，使其能传递一个ID列表和一个目标分类ID
-    items_dropped = pyqtSignal(list, object)
+    item_dropped = pyqtSignal(int, int)
     order_changed = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -144,64 +156,43 @@ class DropTreeWidget(QTreeWidget):
         self.setDropIndicatorShown(True)
 
     def dragEnterEvent(self, event):
-        # 检查是否包含任一我们关心的数据格式
-        if event.source() == self or \
-           event.mimeData().hasFormat('application/x-idea-ids') or \
-           event.mimeData().hasFormat('application/x-idea-id'):
+        if event.source() == self:
+            super().dragEnterEvent(event)
+            event.accept()
+        elif event.mimeData().hasFormat('application/x-idea-id'):
             event.accept()
         else:
             event.ignore()
 
     def dragMoveEvent(self, event):
-        item = self.itemAt(event.pos())
-        if item:
-            data = item.data(0, Qt.UserRole)
-            # 允许放置在'partition', 'favorite', 'trash', 'uncategorized', 'bookmark'等目标上
-            if data and data.get('type') in ['partition', 'favorite', 'trash', 'uncategorized', 'bookmark']:
-                self.setCurrentItem(item)
-                event.accept()
-                return
-        # 如果是内部移动，也接受
         if event.source() == self:
-            event.accept()
-            return
-
-        event.ignore()
-
-    def dropEvent(self, event):
-        ids_to_process = []
-        mime = event.mimeData()
-
-        # 优先处理多ID格式
-        if mime.hasFormat('application/x-idea-ids'):
-            try:
-                data = mime.data('application/x-idea-ids').data().decode('utf-8')
-                ids_to_process = [int(x) for x in data.split(',') if x]
-            except (ValueError, TypeError):
-                ids_to_process = []
-        # 兼容旧的单ID格式
-        elif mime.hasFormat('application/x-idea-id'):
-            try:
-                idea_id = int(mime.data('application/x-idea-id'))
-                ids_to_process = [idea_id]
-            except (ValueError, TypeError):
-                ids_to_process = []
-
-        if ids_to_process:
+            super().dragMoveEvent(event)
+        elif event.mimeData().hasFormat('application/x-idea-id'):
             item = self.itemAt(event.pos())
             if item:
                 data = item.data(0, Qt.UserRole)
-                if data:
-                    # 获取目标分类ID和类型
-                    target_id = data.get('id')
-                    target_type = data.get('type')
-                    # 发出包含ID列表和目标信息的信号
-                    self.items_dropped.emit(ids_to_process, {'id': target_id, 'type': target_type})
-                    event.acceptProposedAction()
+                if data and data.get('type') in ['partition', 'favorite']:
+                    self.setCurrentItem(item)
+                    event.accept()
                     return
+            event.ignore()
+        else:
+            event.ignore()
 
-        # 如果不是我们处理的拖放，则调用基类方法处理内部移动
-        if event.source() == self:
+    def dropEvent(self, event):
+        if event.mimeData().hasFormat('application/x-idea-id'):
+            try:
+                idea_id = int(event.mimeData().data('application/x-idea-id'))
+                item = self.itemAt(event.pos())
+                if item:
+                    data = item.data(0, Qt.UserRole)
+                    if data and data.get('type') in ['partition', 'favorite']:
+                        cat_id = data.get('id')
+                        self.item_dropped.emit(idea_id, cat_id)
+                        event.acceptProposedAction()
+            except Exception as e:
+                pass
+        elif event.source() == self:
             super().dropEvent(event)
             self.order_changed.emit()
             event.accept()
@@ -331,7 +322,7 @@ class QuickWindow(QWidget):
         self.list_widget.customContextMenuRequested.connect(self._show_list_context_menu)
         
         self.partition_tree.currentItemChanged.connect(self._on_partition_selection_changed)
-        self.partition_tree.items_dropped.connect(self._handle_category_drop) # 连接新的信号
+        self.partition_tree.item_dropped.connect(self._handle_category_drop)
         self.partition_tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.partition_tree.customContextMenuRequested.connect(self._show_partition_context_menu)
         self.partition_tree.order_changed.connect(self._save_partition_order)
@@ -463,6 +454,7 @@ class QuickWindow(QWidget):
         
         self.partition_tree = DropTreeWidget()
         self.partition_tree.setHeaderHidden(True)
+        self.partition_tree.setFocusPolicy(Qt.NoFocus)
         self.partition_tree.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.partition_tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         
@@ -706,59 +698,38 @@ class QuickWindow(QWidget):
             self.db.toggle_field(iid, 'is_pinned')
             self._update_list()
 
-    def _handle_category_drop(self, idea_ids, target_info):
-        if not idea_ids or not target_info:
-            return
+    def _handle_category_drop(self, idea_id, cat_id):
+        target_item = None
+        it = QTreeWidgetItemIterator(self.partition_tree)
+        while it.value():
+            item = it.value()
+            data = item.data(0, Qt.UserRole)
+            if data and data.get('id') == cat_id:
+                target_item = item; break
+            it += 1
 
-        target_id = target_info.get('id')
-        target_type = target_info.get('type')
+        if not target_item: return
+        target_data = target_item.data(0, Qt.UserRole)
+        target_type = target_data.get('type')
 
-        # 批量检查锁定状态
         if target_type == 'trash':
-            locked_status = self.db.get_lock_status(idea_ids)
-            # 过滤掉已锁定的ID
-            ids_to_move = [iid for iid in idea_ids if not locked_status.get(iid, 0)]
-            if not ids_to_move: return # 如果所有项都被锁定，则不执行任何操作
-        else:
-            ids_to_move = idea_ids
+            status = self.db.get_lock_status([idea_id])
+            if status.get(idea_id, 0): return
 
-        # 根据目标类型，对每个ID执行相应的数据库操作
-        for iid in ids_to_move:
-            if target_type == 'bookmark':
-                self.db.set_favorite(iid, True, emit_signal=False)
-            elif target_type == 'trash':
-                self.db.set_deleted(iid, True, emit_signal=False)
-            elif target_type == 'uncategorized':
-                self.db.move_category(iid, None, emit_signal=False)
-            elif target_type == 'partition':
-                self.db.move_category(iid, target_id, emit_signal=False)
+        if target_type == 'bookmark': self.db.set_favorite(idea_id, True)
+        elif target_type == 'trash': self.db.set_deleted(idea_id, True)
+        elif target_type == 'uncategorized':
+            self.db.move_category(idea_id, None)
+        elif target_type == 'partition':
+            self.db.move_category(idea_id, cat_id)
+            # [修正] 拖拽也需要更新最近使用列表
+            if cat_id is not None:
+                recent_cats = load_setting('recent_categories', [])
+                if cat_id in recent_cats: recent_cats.remove(cat_id)
+                recent_cats.insert(0, cat_id)
+                save_setting('recent_categories', recent_cats)
 
-        # 更新最近使用的分类列表 (如果目标是'partition')
-        if target_type == 'partition' and target_id is not None:
-            recent_cats = load_setting('recent_categories', [])
-            if target_id in recent_cats:
-                recent_cats.remove(target_id)
-            recent_cats.insert(0, target_id)
-            save_setting('recent_categories', recent_cats)
-
-        # 优化UI更新：从列表中移除被移动的项，而不是完全重载
-        # 创建一个从ID到列表项的映射以便快速查找
-        id_to_item_map = {}
-        for i in range(self.list_widget.count()):
-            item = self.list_widget.item(i)
-            data = item.data(Qt.UserRole)
-            if data and 'id' in data:
-                id_to_item_map[data['id']] = item
-
-        for iid in ids_to_move:
-            item_to_remove = id_to_item_map.get(iid)
-            if item_to_remove:
-                # takeItem会从视觉上移除项并返回它，然后我们可以安全地删除它
-                self.list_widget.takeItem(self.list_widget.row(item_to_remove))
-                del item_to_remove
-
-        # 仅刷新分类树的计数
-        self._update_partition_tree()
+        self._update_list(); self._update_partition_tree()
 
     def _save_partition_order(self):
         update_list = []
