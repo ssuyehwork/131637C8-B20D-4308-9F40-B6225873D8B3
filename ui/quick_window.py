@@ -8,6 +8,7 @@ from ctypes import wintypes
 import time
 import datetime
 import subprocess
+import logging
 
 from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QListWidget, QLineEdit, 
                              QListWidgetItem, QHBoxLayout, QTreeWidget, QTreeWidgetItem, 
@@ -25,7 +26,7 @@ from core.config import COLORS
 from core.settings import load_setting, save_setting
 from ui.utils import create_svg_icon, create_clear_button_icon
 
-# ... (Platform specific imports same as before) ...
+# ... (Platform specific imports) ...
 if sys.platform == "win32":
     user32 = ctypes.windll.user32
     kernel32 = ctypes.windll.kernel32
@@ -183,11 +184,15 @@ QListWidget, QTreeWidget {
     alternate-background-color: #252526;
     outline: none;
 }
-QListWidget::item { padding: 8px; border: none; }
+QListWidget::item { 
+    padding: 6px; 
+    border: none; 
+    border-bottom: 1px solid #2A2A2A; 
+}
 QListWidget::item:selected, QTreeWidget::item:selected {
     background-color: #4a90e2; color: #FFFFFF;
 }
-QListWidget::item:hover { background-color: #444444; }
+QListWidget::item:hover { background-color: #333333; }
 QSplitter::handle { background-color: #333333; width: 2px; }
 QSplitter::handle:hover { background-color: #4a90e2; }
 QLineEdit {
@@ -238,7 +243,9 @@ class QuickWindow(QWidget):
         self.resize_area = None
         self._is_pinned = False
         
-        # ... (System Interop Variables) ...
+        # [优化] 图标 HTML 缓存，避免重复 Base64 编码
+        self._icon_html_cache = {}
+        
         self.last_active_hwnd = None
         self.last_focus_hwnd = None
         self.last_thread_id = None
@@ -291,9 +298,7 @@ class QuickWindow(QWidget):
         self._update_list()
         self.partition_tree.currentItemChanged.connect(self._update_partition_status_display)
 
-    # ... (UI Init, Shortcuts, Preview, etc. - No changes needed) ...
     def _init_ui(self):
-        # ... (Same as before) ...
         self.setWindowTitle("快速笔记")
         self.resize(830, 630)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -321,11 +326,15 @@ class QuickWindow(QWidget):
         
         title_bar_layout = QHBoxLayout()
         title_bar_layout.setContentsMargins(0, 0, 0, 0)
-        title_bar_layout.setSpacing(5)
+        # 【修改 1】将间距设为 0，极致紧凑
+        title_bar_layout.setSpacing(0)
         
         title_icon = QLabel()
         title_icon.setPixmap(create_svg_icon("zap.svg", COLORS['primary']).pixmap(16, 16))
         title_bar_layout.addWidget(title_icon)
+        
+        # 【修改 2】由于间距为0，给标题左侧单独加点间隙
+        title_bar_layout.addSpacing(8)
         
         self.title_label = QLabel("快速笔记")
         self.title_label.setObjectName("TitleLabel")
@@ -333,36 +342,39 @@ class QuickWindow(QWidget):
         
         title_bar_layout.addStretch()
         
+        # 【修改 3】极致紧凑尺寸 24x24
+        btn_size = 24
+        
         self.btn_stay_top = QPushButton(self)
         self.btn_stay_top.setIcon(create_svg_icon('pin_tilted.svg', '#aaa'))
         self.btn_stay_top.setObjectName("PinButton")
         self.btn_stay_top.setToolTip("保持置顶")
         self.btn_stay_top.setCheckable(True)
-        self.btn_stay_top.setFixedSize(32, 32)
+        self.btn_stay_top.setFixedSize(btn_size, btn_size)
         
         self.btn_toggle_side = QPushButton(self)
         self.btn_toggle_side.setIcon(create_svg_icon('action_eye.svg', '#aaa'))
         self.btn_toggle_side.setObjectName("ToolButton")
         self.btn_toggle_side.setToolTip("显示/隐藏侧边栏")
-        self.btn_toggle_side.setFixedSize(32, 32)
+        self.btn_toggle_side.setFixedSize(btn_size, btn_size)
         
         self.btn_open_full = QPushButton(self)
         self.btn_open_full.setIcon(create_svg_icon('win_max.svg', '#aaa'))
         self.btn_open_full.setObjectName("MaxButton")
         self.btn_open_full.setToolTip("切换主程序界面")
-        self.btn_open_full.setFixedSize(32, 32)
+        self.btn_open_full.setFixedSize(btn_size, btn_size)
         
         self.btn_minimize = QPushButton(self)
         self.btn_minimize.setIcon(create_svg_icon('win_min.svg', '#aaa'))
         self.btn_minimize.setObjectName("MinButton")
         self.btn_minimize.setToolTip("最小化")
-        self.btn_minimize.setFixedSize(32, 32)
+        self.btn_minimize.setFixedSize(btn_size, btn_size)
         
         self.btn_close = QPushButton(self)
         self.btn_close.setIcon(create_svg_icon('win_close.svg', '#aaa'))
         self.btn_close.setObjectName("CloseButton")
         self.btn_close.setToolTip("关闭")
-        self.btn_close.setFixedSize(32, 32)
+        self.btn_close.setFixedSize(btn_size, btn_size)
         
         title_bar_layout.addWidget(self.btn_stay_top)
         title_bar_layout.addWidget(self.btn_toggle_side)
@@ -404,7 +416,7 @@ class QuickWindow(QWidget):
         self.list_widget.setAlternatingRowColors(True)
         self.list_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.list_widget.setIconSize(QSize(120, 90))
+        self.list_widget.setIconSize(QSize(28, 28))
         
         self.partition_tree = DropTreeWidget()
         self.partition_tree.setHeaderHidden(True)
@@ -470,7 +482,6 @@ class QuickWindow(QWidget):
         if search_text:
             self.search_box.add_history_entry(search_text)
 
-    # [修改] 上下文菜单：将文件夹图标改为 branch.svg
     def _show_list_context_menu(self, pos):
         import logging
         try:
@@ -532,15 +543,12 @@ class QuickWindow(QWidget):
             
             cat_menu = menu.addMenu(create_svg_icon('branch.svg', '#cccccc'), '移动到分类')
 
-            # [优化] 仅显示最近使用的 15 个分类
             recent_cats = load_setting('recent_categories', [])
             all_cats = {c['id']: c for c in self.db.get_categories()}
             
-            # 添加固定的“未分类”选项
             action_uncategorized = cat_menu.addAction('⚠️ 未分类')
             action_uncategorized.triggered.connect(lambda: self._move_to_category(None))
 
-            # 添加最近使用且仍然存在的分类
             count = 0
             for cat_id in recent_cats:
                 if count >= 15: break
@@ -570,15 +578,12 @@ class QuickWindow(QWidget):
             new_data = self.db.get_idea(idea_id)
             if new_data:
                 item.setData(Qt.UserRole, new_data)
-                # 列表项文字不再包含星级，所以只需刷新文本
                 item.setText(self._get_content_display(new_data))
                 self._update_list_item_tooltip(item, new_data)
 
-    # [新增] 移动到分类的实现
     def _move_to_category(self, cat_id):
         iid = self._get_selected_id()
         if iid:
-            # [新增] 更新最近使用的分类列表
             if cat_id is not None:
                 recent_cats = load_setting('recent_categories', [])
                 if cat_id in recent_cats: recent_cats.remove(cat_id)
@@ -676,14 +681,14 @@ class QuickWindow(QWidget):
             self.db.move_category(idea_id, None)
         elif target_type == 'partition': 
             self.db.move_category(idea_id, cat_id)
-            # [修正] 拖拽也需要更新最近使用列表
             if cat_id is not None:
                 recent_cats = load_setting('recent_categories', [])
                 if cat_id in recent_cats: recent_cats.remove(cat_id)
                 recent_cats.insert(0, cat_id)
                 save_setting('recent_categories', recent_cats)
 
-        self._update_list(); self._update_partition_tree()
+        QTimer.singleShot(10, self._update_list)
+        QTimer.singleShot(10, self._update_partition_tree)
 
     def _save_partition_order(self):
         update_list = []
@@ -815,65 +820,66 @@ class QuickWindow(QWidget):
             partition_data = current_partition.data(0, Qt.UserRole)
             if partition_data:
                 p_type = partition_data.get('type')
-                if p_type == 'partition': f_type, f_val = 'category', partition_data.get('id')
-                elif p_type in ['all', 'today', 'uncategorized', 'untagged', 'bookmark', 'trash']: f_type, f_val = p_type, None
+                
+                if p_type == 'partition': 
+                    f_type, f_val = 'category', partition_data.get('id')
+                elif p_type == 'uncategorized':
+                    f_type, f_val = 'category', None
+                elif p_type in ['all', 'today', 'untagged', 'bookmark', 'trash']: 
+                    f_type, f_val = p_type, None
 
-        items = self.db.get_ideas(search=search_text, f_type=f_type, f_val=f_val)
+        limit = 100
+        
+        items = self.db.get_ideas(search=search_text, f_type=f_type, f_val=f_val, page=1, page_size=limit)
+        
         self.list_widget.clear()
         
         for item_tuple in items:
             list_item = QListWidgetItem()
             list_item.setData(Qt.UserRole, item_tuple)
             
-            item_type = item_tuple['item_type'] or 'text'
             text_part = self._get_content_display(item_tuple)
+            list_item.setText(text_part)
             
-            # --- 列表项视觉简化 ---
-            container = QWidget()
-            layout = QHBoxLayout(container)
-            layout.setContentsMargins(10, 4, 10, 4)
-            layout.setSpacing(10)
+            item_type = item_tuple['item_type'] or 'text'
+            icon = QIcon()
             
-            # 1. 主图标 (图片显示缩略图，其他显示类型图标)
-            icon_lbl = QLabel()
-            icon_lbl.setFixedSize(32, 32)
-            icon_lbl.setAlignment(Qt.AlignCenter)
             if item_type == 'image' and item_tuple['data_blob']:
-                pixmap = QPixmap(); pixmap.loadFromData(item_tuple['data_blob'])
+                pixmap = QPixmap()
+                pixmap.loadFromData(item_tuple['data_blob'])
                 if not pixmap.isNull():
-                    icon_lbl.setPixmap(pixmap.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                    icon = QIcon(pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
             else:
-                icon_name = 'folder.svg' if item_type == 'folder' else 'all_data.svg' # 简单区分
-                icon_lbl.setPixmap(create_svg_icon(icon_name, "#666").pixmap(18, 18))
-            layout.addWidget(icon_lbl)
+                icon_name = 'folder.svg' if item_type == 'folder' else 'all_data.svg'
+                icon = create_svg_icon(icon_name, "#888")
             
-            # 2. 文本标签 (仅显示标题或简略内容)
-            lbl = QLabel(text_part)
-            lbl.setStyleSheet("color: #ccc; font-size: 13px; background: transparent; border: none;")
-            layout.addWidget(lbl, 1)
+            list_item.setIcon(icon)
             
-            self.list_widget.addItem(list_item)
-            self.list_widget.setItemWidget(list_item, container)
-            
-            # --- 设置增强版 Tooltip (修改后: 元数据在上，内容在下，使用 SVG 图标) ---
             self._update_list_item_tooltip(list_item, item_tuple)
             
-        if self.list_widget.count() > 0: self.list_widget.setCurrentRow(0)
+            self.list_widget.addItem(list_item)
+            
+        if self.list_widget.count() > 0:
+            self.list_widget.setCurrentRow(0)
 
-    # [新增] 将 SVG 图标转为 Base64 HTML 字符串
     def _get_icon_html(self, icon_name, color):
+        cache_key = (icon_name, color)
+        if cache_key in self._icon_html_cache:
+            return self._icon_html_cache[cache_key]
+
         icon = create_svg_icon(icon_name, color)
-        pixmap = icon.pixmap(14, 14) # Tooltip 小图标尺寸
+        pixmap = icon.pixmap(14, 14) 
         ba = QByteArray()
         buffer = QBuffer(ba)
         buffer.open(QIODevice.WriteOnly)
         pixmap.save(buffer, "PNG")
         base64_str = ba.toBase64().data().decode()
-        return f'<img src="data:image/png;base64,{base64_str}" width="14" height="14" style="vertical-align:middle;">'
+        
+        html = f'<img src="data:image/png;base64,{base64_str}" width="14" height="14" style="vertical-align:middle;">'
+        self._icon_html_cache[cache_key] = html
+        return html
 
     def _update_list_item_tooltip(self, list_item, item_data):
-        """为列表项设置详细的富文本 Tooltip (使用 SVG 图标)"""
-        # 1. 获取分类和标签
         category_id = item_data['category_id']
         all_cats = self.db.get_categories() 
         cat_name = "未分类"
@@ -884,7 +890,6 @@ class QuickWindow(QWidget):
         tags = self.db.get_tags(item_data['id'])
         tags_str = ", ".join(tags) if tags else "无"
         
-        # 2. 获取内容预览
         full_content = item_data['content'] or ""
         preview_limit = 400 
         content_preview = full_content[:preview_limit].strip().replace('\n', '<br>')
@@ -892,14 +897,12 @@ class QuickWindow(QWidget):
         if not content_preview and item_data['title']:
             content_preview = item_data['title'] 
             
-        # 3. 状态图标
         flags = []
         if item_data['is_pinned']: flags.append(f"{self._get_icon_html('pin_vertical.svg', '#e74c3c')} 置顶")
         if item_data['is_locked']: flags.append(f"{self._get_icon_html('lock.svg', COLORS['success'])} 锁定")
         if item_data['is_favorite']: flags.append(f"{self._get_icon_html('bookmark.svg', '#ff6b81')} 书签")
         flags_str = "&nbsp;&nbsp;".join(flags) if flags else "无"
         
-        # 4. 星级
         rating_val = item_data['rating'] or 0
         if rating_val > 0:
             star_icon = self._get_icon_html('star_filled.svg', '#f39c12')
@@ -907,13 +910,11 @@ class QuickWindow(QWidget):
         else:
             rating_str = "无"
             
-        # 5. 图标定义 (使用 branch.svg)
         icon_folder = self._get_icon_html("branch.svg", COLORS['primary'])
         icon_tag = self._get_icon_html("tag.svg", "#FFAB91")
         icon_star = self._get_icon_html("star.svg", "#f39c12")
         icon_flag = self._get_icon_html("pin_tilted.svg", "#aaaaaa")
         
-        # 6. 构建 HTML 表格 Tooltip
         tooltip_html = f"""
         <html><body>
         <table border="0" cellpadding="1" cellspacing="0" style="color: #ddd;">
@@ -943,7 +944,6 @@ class QuickWindow(QWidget):
         list_item.setToolTip(tooltip_html)
 
     def _get_content_display(self, item_tuple):
-        # We now return only the text part, icons are handled via setItemWidget
         title = item_tuple['title']; content = item_tuple['content']
         item_type = item_tuple['item_type'] or 'text'
         text_part = title if item_type != 'text' else (content if content else "")
