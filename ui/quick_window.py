@@ -88,35 +88,41 @@ class DraggableListWidget(QListWidget):
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
 
     def startDrag(self, supportedActions):
+        item = self.currentItem()
+        if not item:
+            return
+
+        # 关键逻辑：如果开始拖拽的项目本身未被选中，
+        # 那么就清空所有其他选中项，并只选中当前这一个。
+        # 这可以防止意外的“滑动多选”行为。
+        if not item.isSelected():
+            self.clearSelection()
+            item.setSelected(True)
+
         selected_items = self.selectedItems()
         if not selected_items:
             return
 
         # 获取所有选中项的ID
         ids_to_move = []
-        for item in selected_items:
-            data = item.data(Qt.UserRole)
+        for selected_item in selected_items:
+            data = selected_item.data(Qt.UserRole)
             if data and 'id' in data:
                 ids_to_move.append(data['id'])
         
         if not ids_to_move:
             return
 
-        # 确保当前项的ID也在其中，即使它没被正确选中
-        current_item = self.currentItem()
+        # 使用当前拖拽项的ID作为单ID后备
         current_id = 0
-        if current_item:
-            current_data = current_item.data(Qt.UserRole)
-            if current_data:
-                current_id = current_data['id']
-                if current_id not in ids_to_move:
-                    # 这种情况理论上不应该发生，但作为安全保障
-                    ids_to_move.append(current_id)
+        current_data = item.data(Qt.UserRole)
+        if current_data:
+            current_id = current_data['id']
 
         mime = QMimeData()
         # 设置兼容主窗口的MIME类型，包含所有选中的ID
         mime.setData('application/x-idea-ids', (','.join(map(str, ids_to_move))).encode('utf-8'))
-        # 同时保留单个ID的MIME类型，以防万一
+        # 同时保留单个ID的MIME类型作为后备
         mime.setData('application/x-idea-id', str(current_id).encode())
 
         drag = QDrag(self)
