@@ -457,7 +457,6 @@ class QuickWindow(QWidget):
         
         self.partition_tree = DropTreeWidget()
         self.partition_tree.setHeaderHidden(True)
-        self.partition_tree.setFocusPolicy(Qt.NoFocus)
         self.partition_tree.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.partition_tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         
