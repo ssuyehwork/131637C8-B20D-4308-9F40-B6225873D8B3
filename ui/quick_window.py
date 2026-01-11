@@ -652,48 +652,106 @@ class QuickWindow(QWidget):
             self.db.toggle_field(iid, 'is_pinned')
             self._update_list()
 
-    def _handle_category_drop(self, idea_id, cat_id):
-        target_item = None
+    def _find_partition_item(self, cat_id):
+        """通过分类ID查找分区树项目。"""
+        if cat_id is None: # None 表示 '未分类'
+            return self._find_static_item('uncategorized')
+
         it = QTreeWidgetItemIterator(self.partition_tree)
         while it.value():
             item = it.value()
             data = item.data(0, Qt.UserRole)
-            if data and data.get('id') == cat_id:
-                target_item = item; break
+            if data and data.get('type') == 'partition' and data.get('id') == cat_id:
+                return item
             it += 1
-        
+        return None
+
+    def _find_static_item(self, item_type):
+        """通过类型查找静态树项目 (例如, 'trash', 'bookmark')。"""
+        it = QTreeWidgetItemIterator(self.partition_tree)
+        while it.value():
+            item = it.value()
+            data = item.data(0, Qt.UserRole)
+            if data and data.get('type') == item_type:
+                return item
+            it += 1
+        return None
+
+    def _update_item_count_text(self, item, delta):
+        """更新 QTreeWidgetItem 中的计数值, 例如, '分类 (5)' -> '分类 (6)'。"""
+        if not item: return
+        import re
+        text = item.text(0)
+        match = re.search(r'\((\d+)\)', text)
+        if match:
+            try:
+                count = int(match.group(1))
+                new_count = max(0, count + delta) # 确保计数值不低于0
+                name_part = text[:match.start()].strip()
+                new_text = f"{name_part} ({new_count})"
+                item.setText(0, new_text)
+            except (ValueError, IndexError):
+                pass # 如果文本格式不符合预期，则忽略
+
+    def _handle_category_drop(self, idea_id, target_cat_id_from_signal):
+        # 1. 在任何更改之前获取源分类ID
+        source_idea_data = self.db.get_idea(idea_id)
+        if not source_idea_data: return
+        source_cat_id = source_idea_data.get('category_id')
+
+        # 2. 从树的当前选中项获取目标项信息
+        target_item = self.partition_tree.currentItem()
         if not target_item: return
         target_data = target_item.data(0, Qt.UserRole)
+        if not target_data: return
         target_type = target_data.get('type')
         
-        if target_type == 'trash':
-            status = self.db.get_lock_status([idea_id])
-            if status.get(idea_id, 0): return
+        # 3. 阻止锁定的项目被移动到回收站
+        if target_type == 'trash' and self.db.get_lock_status([idea_id]).get(idea_id, 0):
+            return
 
-        if target_type == 'bookmark': self.db.set_favorite(idea_id, True)
-        elif target_type == 'trash': self.db.set_deleted(idea_id, True)
-        elif target_type == 'uncategorized': 
+        # 4. 执行数据库更新并确定是否为移动操作
+        is_a_move = False
+        if target_type == 'bookmark':
+            self.db.set_favorite(idea_id, True)
+        elif target_type == 'trash':
+            self.db.set_deleted(idea_id, True)
+            is_a_move = True
+        elif target_type == 'uncategorized':
             self.db.move_category(idea_id, None)
-        elif target_type == 'partition': 
-            self.db.move_category(idea_id, cat_id)
-            # [修正] 拖拽也需要更新最近使用列表
-            if cat_id is not None:
+            is_a_move = True
+        elif target_type == 'partition':
+            self.db.move_category(idea_id, target_cat_id_from_signal)
+            is_a_move = True
+            # 更新最近使用的分类列表
+            if target_cat_id_from_signal is not None:
                 recent_cats = load_setting('recent_categories', [])
-                if cat_id in recent_cats: recent_cats.remove(cat_id)
-                recent_cats.insert(0, cat_id)
+                if target_cat_id_from_signal in recent_cats: recent_cats.remove(target_cat_id_from_signal)
+                recent_cats.insert(0, target_cat_id_from_signal)
                 save_setting('recent_categories', recent_cats)
 
-        # [优化] 拖拽后只移除卡片并更新分类计数，避免全量刷新
-        # 1. 从列表中找到并移除被拖拽的项
+        # 5. 执行快速、增量的UI更新
+        if is_a_move and source_cat_id != target_cat_id_from_signal:
+            source_item = self._find_partition_item(source_cat_id)
+            self._update_item_count_text(source_item, -1)
+
+            if target_type == 'partition':
+                target_item_to_update = self._find_partition_item(target_cat_id_from_signal)
+            else: # 回收站或未分类
+                target_item_to_update = self._find_static_item(target_type)
+            self._update_item_count_text(target_item_to_update, 1)
+
+        if target_type == 'bookmark':
+            bookmark_item = self._find_static_item('bookmark')
+            self._update_item_count_text(bookmark_item, 1)
+
+        # 从列表视图中移除项目
         for i in range(self.list_widget.count()):
             item = self.list_widget.item(i)
             data = item.data(Qt.UserRole)
-            if data and data['id'] == idea_id:
+            if data and data.get('id') == idea_id:
                 self.list_widget.takeItem(i)
                 break
-
-        # 2. 更新分类树以反映数量变化
-        self._update_partition_tree()
 
     def _save_partition_order(self):
         update_list = []
