@@ -106,9 +106,9 @@ class DraggableListWidget(QListWidget):
             # pixmap = item_widget.grab()
             # drag.setPixmap(pixmap)
 
-            offset = 25
-            # 使用与主窗口卡片完全相同的逻辑来设置热点
-            drag.setHotSpot(QPoint(-offset, pixmap.height() + offset))
+            # 由于没有快照(pixmap)，热点设置已无意义，故一并移除
+            # offset = 25
+            # drag.setHotSpot(QPoint(-offset, pixmap.height() + offset))
 
         # [修改] 将操作类型改为CopyAction以显示"+"号光标
         drag.exec_(Qt.CopyAction)
