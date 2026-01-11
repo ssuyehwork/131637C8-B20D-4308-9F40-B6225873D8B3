@@ -259,7 +259,7 @@ class IdeaCard(QFrame):
         drag.setPixmap(pixmap)
 
         # [修正] 修正热点计算逻辑，精确控制快照在光标右上角的位置
-        offset = 30
+        offset = 25
         # 热点是快照上与光标对齐的点。
         # 将其设置为(-offset, pixmap.height() + offset) 可以
         # 将快照的左下角精确定位在(光标.x + offset, 光标.y - offset)
