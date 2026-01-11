@@ -588,15 +588,17 @@ class MainWindow(QWidget):
             self._load_data(); self._update_ui_state(); self.sidebar.refresh()
 
     def _do_del(self):
-        if self.selected_ids:
-            valid_ids = self._get_valid_ids_ignoring_locked(self.selected_ids)
-            if not valid_ids: self._show_tooltip("🔒 锁定项目无法删除", 1500); return
-            for iid in valid_ids:
-                self.service.set_deleted(iid, True)
-                self.card_list_view.remove_card(iid)
-            self.selected_ids.clear()
-            self._update_ui_state()
-            self.sidebar.refresh()
+        if not self.selected_ids: return
+        valid_ids = self._get_valid_ids_ignoring_locked(self.selected_ids)
+        if not valid_ids: self._show_tooltip("🔒 锁定项目无法删除", 1500); return
+
+        for iid in valid_ids:
+            self.service.set_deleted(iid, True, emit_signal=False)
+            self.card_list_view.remove_card(iid)
+
+        self.selected_ids.clear()
+        self._update_ui_state()
+        self.sidebar.refresh()
 
     def _do_restore(self):
         if self.selected_ids:
@@ -639,20 +641,23 @@ class MainWindow(QWidget):
         return [iid for iid in ids if not status_map.get(iid, 0)]
 
     def _move_to_category(self, cat_id):
-        if self.selected_ids:
-            # [新增] 更新最近使用的分类列表
-            if cat_id is not None:
-                recent_cats = load_setting('recent_categories', [])
-                if cat_id in recent_cats: recent_cats.remove(cat_id)
-                recent_cats.insert(0, cat_id)
-                save_setting('recent_categories', recent_cats)
+        if not self.selected_ids: return
 
-            for iid in self.selected_ids:
-                self.service.move_category(iid, cat_id)
-                self.card_list_view.remove_card(iid)
-            self.selected_ids.clear()
-            self._update_ui_state()
-            self.sidebar.refresh()
+        # [新增] 更新最近使用的分类列表
+        if cat_id is not None:
+            recent_cats = load_setting('recent_categories', [])
+            if cat_id in recent_cats: recent_cats.remove(cat_id)
+            recent_cats.insert(0, cat_id)
+            save_setting('recent_categories', recent_cats)
+
+        ids_to_move = list(self.selected_ids)
+        for iid in ids_to_move:
+            self.service.move_category(iid, cat_id, emit_signal=False)
+            self.card_list_view.remove_card(iid)
+
+        self.selected_ids.clear()
+        self._update_ui_state()
+        self.sidebar.refresh()
 
     def _update_ui_state(self):
         in_trash = (self.curr_filter[0] == 'trash')
