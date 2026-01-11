@@ -373,13 +373,23 @@ class Sidebar(QTreeWidget):
     def _new_group(self):
         text, ok = QInputDialog.getText(self, '新建组', '组名称:')
         if ok and text:
-            self.db.add_category(text, parent_id=None)
+            new_cat_id = self.db.add_category(text, parent_id=None)
+            if new_cat_id:
+                recent_cats = load_setting('recent_categories', [])
+                if new_cat_id in recent_cats: recent_cats.remove(new_cat_id)
+                recent_cats.insert(0, new_cat_id)
+                save_setting('recent_categories', recent_cats)
             self.refresh()
             
     def _new_zone(self, parent_id):
         text, ok = QInputDialog.getText(self, '新建区', '区名称:')
         if ok and text:
-            self.db.add_category(text, parent_id=parent_id)
+            new_cat_id = self.db.add_category(text, parent_id=parent_id)
+            if new_cat_id:
+                recent_cats = load_setting('recent_categories', [])
+                if new_cat_id in recent_cats: recent_cats.remove(new_cat_id)
+                recent_cats.insert(0, new_cat_id)
+                save_setting('recent_categories', recent_cats)
             self.refresh()
 
     def _rename_category(self, cat_id, old_name):
