@@ -697,7 +697,8 @@ class QuickWindow(QWidget):
         # 1. 在任何更改之前获取源分类ID
         source_idea_data = self.db.get_idea(idea_id)
         if not source_idea_data: return
-        source_cat_id = source_idea_data.get('category_id')
+        # [修正] sqlite3.Row 对象不支持 .get() 方法，使用字典风格访问
+        source_cat_id = source_idea_data['category_id'] if 'category_id' in source_idea_data.keys() else None
 
         # 2. 从树的当前选中项获取目标项信息
         target_item = self.partition_tree.currentItem()
