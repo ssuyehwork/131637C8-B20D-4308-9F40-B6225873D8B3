@@ -445,8 +445,10 @@ class QuickWindow(QWidget):
         
         self.splitter = QSplitter(Qt.Horizontal)
         self.splitter.setHandleWidth(4)
+        self.splitter.setMouseTracking(True)
         
         self.list_widget = DraggableListWidget()
+        self.list_widget.setMouseTracking(True)
         self.list_widget.setFocusPolicy(Qt.StrongFocus)
         self.list_widget.setAlternatingRowColors(True)
         self.list_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -459,6 +461,7 @@ class QuickWindow(QWidget):
         self.right_sidebar_layout.setSpacing(0)
         
         self.system_tree = DropTreeWidget()
+        self.system_tree.setMouseTracking(True)
         self.system_tree.setHeaderHidden(True)
         self.system_tree.setFocusPolicy(Qt.NoFocus)
         self.system_tree.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -466,6 +469,7 @@ class QuickWindow(QWidget):
         self.system_tree.setFixedHeight(150) 
         
         self.partition_tree = DropTreeWidget()
+        self.partition_tree.setMouseTracking(True)
         self.partition_tree.setHeaderHidden(True)
         self.partition_tree.setFocusPolicy(Qt.NoFocus)
         self.partition_tree.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
