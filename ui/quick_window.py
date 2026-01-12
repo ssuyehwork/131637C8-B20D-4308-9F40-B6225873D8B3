@@ -1040,7 +1040,7 @@ class QuickWindow(QWidget):
             bg_color = c.darker(350).name()
             alt_bg_color = c.darker(450).name()
             
-            style = f\"\"\"
+            style = f"""
                 QListWidget {{
                     border: none;
                     outline: none;
@@ -1056,10 +1056,10 @@ class QuickWindow(QWidget):
                 QListWidget::item:hover {{
                     background-color: rgba(255, 255, 255, 0.1);
                 }}
-            \"\"\"
+            """
         else:
             # 默认深色主题
-            style = f\"\"\"
+            style = f"""
                 QListWidget {{
                     border: none;
                     outline: none;
@@ -1075,7 +1075,7 @@ class QuickWindow(QWidget):
                 QListWidget::item:hover {{
                     background-color: #333333;
                 }}
-            \"\"\"
+            """
         self.list_widget.setStyleSheet(style)
 
     def _update_list(self):
