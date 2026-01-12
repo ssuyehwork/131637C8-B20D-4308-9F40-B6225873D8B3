@@ -453,12 +453,6 @@ class QuickWindow(QWidget):
         self.list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.list_widget.setIconSize(QSize(28, 28))
         
-        # 安装事件过滤器
-        self.list_widget.installEventFilter(self)
-        self.system_tree.installEventFilter(self)
-        self.partition_tree.installEventFilter(self)
-        self.splitter.handle(1).installEventFilter(self)
-
         self.right_sidebar_widget = QWidget()
         self.right_sidebar_layout = QVBoxLayout(self.right_sidebar_widget)
         self.right_sidebar_layout.setContentsMargins(0, 0, 0, 0)
@@ -477,6 +471,12 @@ class QuickWindow(QWidget):
         self.partition_tree.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.partition_tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         
+        # 安装事件过滤器
+        self.list_widget.installEventFilter(self)
+        self.system_tree.installEventFilter(self)
+        self.partition_tree.installEventFilter(self)
+        self.splitter.handle(1).installEventFilter(self)
+
         self.right_sidebar_layout.addWidget(self.system_tree)
         self.right_sidebar_layout.addWidget(self.partition_tree)
         
