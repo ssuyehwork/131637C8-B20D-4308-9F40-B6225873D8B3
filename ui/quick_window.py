@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QListWidget, QL
                              QLabel, QTreeWidgetItemIterator, QShortcut, QAbstractItemView, QMenu,
                              QColorDialog, QInputDialog, QMessageBox, QFrame)
 from PyQt5.QtCore import Qt, QTimer, QPoint, QRect, QSettings, QUrl, QMimeData, pyqtSignal, QObject, QSize, QByteArray, QBuffer, QIODevice, QEvent
-from PyQt5.QtGui import QImage, QColor, QCursor, QPixmap, QPainter, QIcon, QKeySequence, QDrag, QIntValidator, QTransform
+from PyQt5.QtGui import QImage, QColor, QCursor, QPixmap, QPainter, QIcon, QKeySequence, QDrag, QIntValidator, QTransform, QMouseEvent
 
 from services.preview_service import PreviewService
 from ui.dialogs import EditDialog
@@ -906,11 +906,30 @@ class QuickWindow(QWidget):
         event.ignore()
 
     def eventFilter(self, obj, event):
-        if obj in [self.list_widget, self.system_tree, self.partition_tree, self.splitter.handle(1)]:
-            if event.type() == QEvent.MouseMove:
-                # 直接将事件转发给主窗口的 mouseMoveEvent
-                self.mouseMoveEvent(event)
+        if isinstance(obj, (QWidget, QSplitter.handle)) and event.type() == QEvent.MouseMove:
+            # 检查对象是否是我们关心的控件之一
+            if obj in [self.list_widget, self.system_tree, self.partition_tree, self.splitter.handle(1)]:
+                # 将子控件的坐标转换为相对于主窗口的坐标
+                global_pos = obj.mapToGlobal(event.pos())
+                window_pos = self.mapFromGlobal(global_pos)
+
+                # 创建一个新的鼠标事件，使用转换后的坐标
+                new_event = QMouseEvent(
+                    event.type(),
+                    window_pos,
+                    event.windowPos(),
+                    event.globalPos(),
+                    event.button(),
+                    event.buttons(),
+                    event.modifiers(),
+                    event.source()
+                )
+
+                # 使用新事件调用主窗口的 mouseMoveEvent
+                self.mouseMoveEvent(new_event)
+                # 返回 False，允许事件继续传递给原始控件（例如，用于悬停效果）
                 return False
+
         return super().eventFilter(obj, event)
 
     def _get_resize_area(self, pos):
@@ -959,15 +978,11 @@ class QuickWindow(QWidget):
             event.accept()
 
     def mouseMoveEvent(self, event):
-        # 无论鼠标左键是否按下，都应该先更新光标形状
-        if not self.m_drag and not self.resize_area:
-             self._set_cursor_shape(self._get_resize_area(event.pos()))
-
-        # 如果鼠标左键没有按下，则不执行拖动或缩放逻辑
-        if not event.buttons() & Qt.LeftButton:
+        if event.buttons() == Qt.NoButton:
+            self._set_cursor_shape(self._get_resize_area(event.pos()))
+            event.accept()
             return
 
-        # --- 以下为原有的拖动和缩放逻辑 ---
         if event.buttons() == Qt.LeftButton:
             if self.resize_area:
                 delta = event.globalPos() - self.resize_start_pos
