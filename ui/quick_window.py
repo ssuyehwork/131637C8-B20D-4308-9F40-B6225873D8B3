@@ -484,8 +484,8 @@ class QuickWindow(QWidget):
         
         self.partition_status_label = QLabel("当前分区: 全部数据")
         self.partition_status_label.setObjectName("PartitionStatusLabel")
-        self.partition_status_label.setStyleSheet("font-size: 11px; color: #888; padding-left: 2px;")
-        self.partition_status_label.setMaximumHeight(50)
+        # 移除固定的字体大小和最大高度，使其与列表项的样式（14px字体 + 6px上下边距）保持一致
+        self.partition_status_label.setStyleSheet("color: #888; padding: 6px 0px 6px 2px;")
         self.left_layout.addWidget(self.partition_status_label)
         self.partition_status_label.hide()
 
