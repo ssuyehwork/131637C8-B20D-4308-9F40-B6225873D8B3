@@ -925,28 +925,42 @@ class QuickWindow(QWidget):
     def mouseMoveEvent(self, event):
         if event.buttons() == Qt.NoButton:
             self._set_cursor_shape(self._get_resize_area(event.pos()))
-            event.accept(); return
-        
+            event.accept()
+            return
+
         if event.buttons() == Qt.LeftButton:
             if self.resize_area:
                 global_pos = event.globalPos()
                 rect = self.geometry()
-                
+
+                x, y, w, h = rect.x(), rect.y(), rect.width(), rect.height()
+                min_w, min_h = 100, 100
+
                 if 'left' in self.resize_area:
-                    new_w = rect.right() - global_pos.x()
-                    if new_w > 100: rect.setLeft(global_pos.x())
-                elif 'right' in self.resize_area:
+                    new_x = global_pos.x()
+                    new_w = rect.right() - new_x
+                    if new_w > min_w:
+                        x = new_x
+                        w = new_w
+
+                if 'right' in self.resize_area:
                     new_w = global_pos.x() - rect.left()
-                    if new_w > 100: rect.setWidth(new_w)
-                    
+                    if new_w > min_w:
+                        w = new_w
+
                 if 'top' in self.resize_area:
-                    new_h = rect.bottom() - global_pos.y()
-                    if new_h > 100: rect.setTop(global_pos.y())
-                elif 'bottom' in self.resize_area:
-                    new_h = global_pos.y() - rect.top()
-                    if new_h > 100: rect.setHeight(new_h)
+                    new_y = global_pos.y()
+                    new_h = rect.bottom() - new_y
+                    if new_h > min_h:
+                        y = new_y
+                        h = new_h
                 
-                self.setGeometry(rect)
+                if 'bottom' in self.resize_area:
+                    new_h = global_pos.y() - rect.top()
+                    if new_h > min_h:
+                        h = new_h
+
+                self.setGeometry(x, y, w, h)
                 event.accept()
             elif self.m_drag:
                 self.move(event.globalPos() - self.m_DragPosition)

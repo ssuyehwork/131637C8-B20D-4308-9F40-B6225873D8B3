@@ -796,61 +796,28 @@ class MainWindow(QWidget):
             event.accept()
             
     def mouseMoveEvent(self, event):
-        # 当没有鼠标按钮按下时，只更新光标样式
         if event.buttons() == Qt.NoButton:
-            if not self.isMaximized():
-                self._set_cursor_for_resize(self._get_resize_area(event.pos()))
-            else:
-                self.setCursor(Qt.ArrowCursor)
-            event.accept()
-            return
-
-        # 当鼠标左键按下时，处理拖拽或调整大小
+            self._set_cursor_for_resize(self._get_resize_area(event.pos()))
+            event.accept(); return
         if event.buttons() == Qt.LeftButton:
             if self.resize_area:
-                if self.isMaximized():
-                    return
-
-                delta = event.globalPos() - self.resize_start_pos
-                start_rect = self.resize_start_geometry
-
-                x, y, w, h = start_rect.x(), start_rect.y(), start_rect.width(), start_rect.height()
-
-                min_w = 600
-                min_h = 400
-
+                d = event.globalPos() - self.resize_start_pos; r = self.resize_start_geometry; nr = r.adjusted(0,0,0,0)
                 if 'left' in self.resize_area:
-                    new_x = start_rect.left() + delta.x()
-                    new_w = start_rect.right() - new_x
-                    if new_w >= min_w:
-                        x = new_x
-                        w = new_w
-
+                    nl = r.left() + d.x()
+                    if r.right() - nl >= 600: nr.setLeft(nl)
                 if 'right' in self.resize_area:
-                    new_w = start_rect.width() + delta.x()
-                    if new_w >= min_w:
-                        w = new_w
-
+                    nw = r.width() + d.x()
+                    if nw >= 600: nr.setWidth(nw)
                 if 'top' in self.resize_area:
-                    new_y = start_rect.top() + delta.y()
-                    new_h = start_rect.bottom() - new_y
-                    if new_h >= min_h:
-                        y = new_y
-                        h = new_h
-
+                    nt = r.top() + d.y()
+                    if r.bottom() - nt >= 400: nr.setTop(nt)
                 if 'bottom' in self.resize_area:
-                    new_h = start_rect.height() + delta.y()
-                    if new_h >= min_h:
-                        h = new_h
-
-                self.setGeometry(x, y, w, h)
+                    nh = r.height() + d.y()
+                    if nh >= 400: nr.setHeight(nh)
+                self.setGeometry(nr)
                 event.accept()
-
             elif self._drag_pos:
-                if self.isMaximized():
-                    return
-                self.move(event.globalPos() - self._drag_pos)
-                event.accept()
+                self.move(event.globalPos() - self._drag_pos); event.accept()
                 
     def mouseReleaseEvent(self, event):
         self._drag_pos = None; self.resize_area = None; self.setCursor(Qt.ArrowCursor)
