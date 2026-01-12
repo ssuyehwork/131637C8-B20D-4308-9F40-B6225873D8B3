@@ -309,6 +309,9 @@ class QuickWindow(QWidget):
         self.m_drag = False
         self.m_DragPosition = QPoint()
         self.resize_area = None
+        # 用于居中缩放的临时变量
+        self.initial_resize_pos = QPoint()
+        self.initial_resize_geom = QRect()
         self._is_pinned = False
         
         # [分页] 初始化状态
@@ -918,8 +921,16 @@ class QuickWindow(QWidget):
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             areas = self._get_resize_area(event.pos())
-            if areas: self.resize_area = areas; self.m_drag = False
-            else: self.resize_area = None; self.m_drag = True; self.m_DragPosition = event.globalPos() - self.pos()
+            if areas:
+                self.resize_area = areas
+                self.m_drag = False
+                # 记录缩放操作的初始状态
+                self.initial_resize_pos = event.globalPos()
+                self.initial_resize_geom = self.geometry()
+            else:
+                self.resize_area = None
+                self.m_drag = True
+                self.m_DragPosition = event.globalPos() - self.pos()
             event.accept()
 
     def mouseMoveEvent(self, event):
@@ -929,24 +940,38 @@ class QuickWindow(QWidget):
         
         if event.buttons() == Qt.LeftButton:
             if self.resize_area:
-                global_pos = event.globalPos()
-                rect = self.geometry()
+                delta = event.globalPos() - self.initial_resize_pos
+                new_geom = self.initial_resize_geom
+
+                min_w, min_h = 200, 150 # 最小窗口尺寸
                 
+                dx = delta.x()
+                dy = delta.y()
+
+                # 根据拖拽区域计算新的几何尺寸
                 if 'left' in self.resize_area:
-                    new_w = rect.right() - global_pos.x()
-                    if new_w > 100: rect.setLeft(global_pos.x())
+                    new_w = new_geom.width() - 2 * dx
+                    if new_w > min_w:
+                        new_geom.setLeft(new_geom.left() + dx)
+                        new_geom.setWidth(new_w)
                 elif 'right' in self.resize_area:
-                    new_w = global_pos.x() - rect.left()
-                    if new_w > 100: rect.setWidth(new_w)
-                    
+                    new_w = new_geom.width() + 2 * dx
+                    if new_w > min_w:
+                        new_geom.setLeft(new_geom.left() - dx)
+                        new_geom.setWidth(new_w)
+
                 if 'top' in self.resize_area:
-                    new_h = rect.bottom() - global_pos.y()
-                    if new_h > 100: rect.setTop(global_pos.y())
+                    new_h = new_geom.height() - 2 * dy
+                    if new_h > min_h:
+                        new_geom.setTop(new_geom.top() + dy)
+                        new_geom.setHeight(new_h)
                 elif 'bottom' in self.resize_area:
-                    new_h = global_pos.y() - rect.top()
-                    if new_h > 100: rect.setHeight(new_h)
-                
-                self.setGeometry(rect)
+                    new_h = new_geom.height() + 2 * dy
+                    if new_h > min_h:
+                        new_geom.setTop(new_geom.top() - dy)
+                        new_geom.setHeight(new_h)
+
+                self.setGeometry(new_geom)
                 event.accept()
             elif self.m_drag:
                 self.move(event.globalPos() - self.m_DragPosition)
