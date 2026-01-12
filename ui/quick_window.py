@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QListWidget, QL
                              QPushButton, QStyle, QAction, QSplitter, QGraphicsDropShadowEffect, 
                              QLabel, QTreeWidgetItemIterator, QShortcut, QAbstractItemView, QMenu,
                              QColorDialog, QInputDialog, QMessageBox, QFrame)
-from PyQt5.QtCore import Qt, QTimer, QPoint, QRect, QSettings, QUrl, QMimeData, pyqtSignal, QObject, QSize, QByteArray, QBuffer, QIODevice
+from PyQt5.QtCore import Qt, QTimer, QPoint, QRect, QSettings, QUrl, QMimeData, pyqtSignal, QObject, QSize, QByteArray, QBuffer, QIODevice, QEvent
 from PyQt5.QtGui import QImage, QColor, QCursor, QPixmap, QPainter, QIcon, QKeySequence, QDrag, QIntValidator, QTransform
 
 from services.preview_service import PreviewService
@@ -445,23 +445,26 @@ class QuickWindow(QWidget):
         
         self.splitter = QSplitter(Qt.Horizontal)
         self.splitter.setHandleWidth(4)
-        self.splitter.setMouseTracking(True)
         
         self.list_widget = DraggableListWidget()
-        self.list_widget.setMouseTracking(True)
         self.list_widget.setFocusPolicy(Qt.StrongFocus)
         self.list_widget.setAlternatingRowColors(True)
         self.list_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.list_widget.setIconSize(QSize(28, 28))
         
+        # 安装事件过滤器
+        self.list_widget.installEventFilter(self)
+        self.system_tree.installEventFilter(self)
+        self.partition_tree.installEventFilter(self)
+        self.splitter.handle(1).installEventFilter(self)
+
         self.right_sidebar_widget = QWidget()
         self.right_sidebar_layout = QVBoxLayout(self.right_sidebar_widget)
         self.right_sidebar_layout.setContentsMargins(0, 0, 0, 0)
         self.right_sidebar_layout.setSpacing(0)
         
         self.system_tree = DropTreeWidget()
-        self.system_tree.setMouseTracking(True)
         self.system_tree.setHeaderHidden(True)
         self.system_tree.setFocusPolicy(Qt.NoFocus)
         self.system_tree.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -469,7 +472,6 @@ class QuickWindow(QWidget):
         self.system_tree.setFixedHeight(150) 
         
         self.partition_tree = DropTreeWidget()
-        self.partition_tree.setMouseTracking(True)
         self.partition_tree.setHeaderHidden(True)
         self.partition_tree.setFocusPolicy(Qt.NoFocus)
         self.partition_tree.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -890,6 +892,14 @@ class QuickWindow(QWidget):
         self.save_state()
         self.hide()
         event.ignore()
+
+    def eventFilter(self, obj, event):
+        if obj in [self.list_widget, self.system_tree, self.partition_tree, self.splitter.handle(1)]:
+            if event.type() == QEvent.MouseMove:
+                if not self.m_drag and not self.resize_area:
+                    self.mouseMoveEvent(event)
+                return False
+        return super().eventFilter(obj, event)
 
     def _get_resize_area(self, pos):
         # 修正：工具栏在右侧，调整区域需要避开
