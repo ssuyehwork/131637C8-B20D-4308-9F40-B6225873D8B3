@@ -948,27 +948,27 @@ class QuickWindow(QWidget):
                 dx = delta.x()
                 dy = delta.y()
 
-                # 根据拖拽区域计算新的几何尺寸
+                # 根据拖拽区域计算新的几何尺寸 (1:1 缩放)
                 if 'left' in self.resize_area:
-                    new_w = new_geom.width() - 2 * dx
+                    new_w = new_geom.width() - dx
                     if new_w > min_w:
-                        new_geom.setLeft(new_geom.left() + dx)
+                        new_geom.setLeft(new_geom.left() + dx // 2)
                         new_geom.setWidth(new_w)
                 elif 'right' in self.resize_area:
-                    new_w = new_geom.width() + 2 * dx
+                    new_w = new_geom.width() + dx
                     if new_w > min_w:
-                        new_geom.setLeft(new_geom.left() - dx)
+                        new_geom.setLeft(new_geom.left() - dx // 2)
                         new_geom.setWidth(new_w)
 
                 if 'top' in self.resize_area:
-                    new_h = new_geom.height() - 2 * dy
+                    new_h = new_geom.height() - dy
                     if new_h > min_h:
-                        new_geom.setTop(new_geom.top() + dy)
+                        new_geom.setTop(new_geom.top() + dy // 2)
                         new_geom.setHeight(new_h)
                 elif 'bottom' in self.resize_area:
-                    new_h = new_geom.height() + 2 * dy
+                    new_h = new_geom.height() + dy
                     if new_h > min_h:
-                        new_geom.setTop(new_geom.top() - dy)
+                        new_geom.setTop(new_geom.top() - dy // 2)
                         new_geom.setHeight(new_h)
 
                 self.setGeometry(new_geom)
