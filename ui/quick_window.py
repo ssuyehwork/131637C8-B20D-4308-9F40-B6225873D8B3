@@ -1024,62 +1024,58 @@ class QuickWindow(QWidget):
 
     # [核心修改] 动态主题：奇/偶行都使用分类颜色，只是深浅不同
     def _apply_list_theme(self, color_hex):
+        # 统一的选中样式：左侧5px白边，背景为悬浮色，文字颜色不变
+        # 为了防止文字因边框而移动，将左内边距从6px减少到1px
+        selected_style = """
+            QListWidget::item:selected {
+                background-color: #333333;
+                color: #cccccc;
+                border-left: 5px solid white;
+                padding-left: 1px;
+            }
+        """
+
         if color_hex:
             c = QColor(color_hex)
-            
-            # 偶数行（Base Background）：分类颜色的深色版 (350% darker)
             bg_color = c.darker(350).name()
-            
-            # 奇数行（Alternate Background）：分类颜色的更深色版 (450% darker) -> 也就是"调暗一点"
             alt_bg_color = c.darker(450).name()
             
-            # 选中行：分类颜色的稍亮版 (110% darker，接近原色)
-            sel_color = c.darker(110).name()
-
-            style = f"""
+            style = f\"\"\"
                 QListWidget {{
                     border: none;
                     outline: none;
-                    /* 偶数行背景 */
                     background-color: {bg_color};
-                    /* 奇数行背景 (交替色) - 更暗一点 */
                     alternate-background-color: {alt_bg_color};
                 }}
                 QListWidget::item {{
                     padding: 6px;
                     border: none;
-                    border-bottom: 1px solid rgba(0,0,0, 0.3); /* 增加微弱的分割线提升层次感 */
+                    border-bottom: 1px solid rgba(0,0,0, 0.3);
                 }}
-                QListWidget::item:selected {{
-                    background-color: {sel_color};
-                    color: #FFFFFF;
-                }}
+                {selected_style}
                 QListWidget::item:hover {{
                     background-color: rgba(255, 255, 255, 0.1);
                 }}
-            """
+            \"\"\"
         else:
-            # 默认深色主题 (未选中分类时)
-            style = """
-                QListWidget {
+            # 默认深色主题
+            style = f\"\"\"
+                QListWidget {{
                     border: none;
                     outline: none;
                     background-color: #1e1e1e;
                     alternate-background-color: #151515;
-                }
-                QListWidget::item {
+                }}
+                QListWidget::item {{
                     padding: 6px;
                     border: none;
                     border-bottom: 1px solid #2A2A2A;
-                }
-                QListWidget::item:selected {
-                    background-color: #4a90e2;
-                    color: #FFFFFF;
-                }
-                QListWidget::item:hover {
+                }}
+                {selected_style}
+                QListWidget::item:hover {{
                     background-color: #333333;
-                }
-            """
+                }}
+            \"\"\"
         self.list_widget.setStyleSheet(style)
 
     def _update_list(self):
