@@ -86,20 +86,66 @@ except ImportError:
 class DraggableListWidget(QListWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        # 启用拖拽，但我们将手动处理启动
         self.setDragEnabled(True)
+        # 启用多选
+        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.drag_start_pos = QPoint()
 
-    def startDrag(self, supportedActions):
-        item = self.currentItem()
-        if not item: return
-        data = item.data(Qt.UserRole)
-        if not data: return
-        idea_id = data['id']
-        
-        mime = QMimeData()
-        mime.setData('application/x-idea-id', str(idea_id).encode())
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.drag_start_pos = event.pos()
+        # 调用父类实现以确保正常的点击和选择行为
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        # 检查是否是左键按下的移动，并且移动距离超过了系统阈值
+        if not (event.buttons() & Qt.LeftButton):
+            return
+        if (event.pos() - self.drag_start_pos).manhattanLength() < QApplication.startDragDistance():
+            # 在未达到拖拽阈值时，让父类处理，这可能包括滑动选择
+            # 但一旦拖拽开始，我们就接管
+            super().mouseMoveEvent(event)
+            return
+
+        # --- 手动发起拖拽 ---
         drag = QDrag(self)
+        mime = QMimeData()
+
+        item = self.itemAt(self.drag_start_pos)
+        if not item:
+            return
+
+        # 核心逻辑：判断拖拽的是否是已选项
+        is_dragging_selected_item = item.isSelected()
+
+        ids_to_move = []
+        if is_dragging_selected_item:
+            # 如果拖拽的是一个已选项，则移动所有已选项
+            for selected_item in self.selectedItems():
+                data = selected_item.data(Qt.UserRole)
+                if data and 'id' in data:
+                    ids_to_move.append(data['id'])
+        else:
+            # 如果拖拽的是一个未选项，则只移动这一个
+            data = item.data(Qt.UserRole)
+            if data and 'id' in data:
+                ids_to_move = [data['id']]
+
+        if not ids_to_move:
+            return
+
+        # 设置与主窗口兼容的数据
+        mime.setData('application/x-idea-ids', (','.join(map(str, ids_to_move))).encode('utf-8'))
+
+        # 为了安全，也设置单ID后备
+        current_id_str = str(ids_to_move[0]) if ids_to_move else "0"
+        mime.setData('application/x-idea-id', current_id_str.encode())
+
         drag.setMimeData(mime)
-        drag.exec_(Qt.MoveAction)
+
+        # 使用CopyAction，与主窗口保持一致
+        drag.exec_(Qt.CopyAction)
 
 class DropTreeWidget(QTreeWidget):
     item_dropped = pyqtSignal(int, int)
@@ -813,20 +859,20 @@ class QuickWindow(QWidget):
             if data and data.get('id') == cat_id:
                 target_item = item; break
             it += 1
-        
+
         if not target_item: return
         target_data = target_item.data(0, Qt.UserRole)
         target_type = target_data.get('type')
-        
+
         if target_type == 'trash':
             status = self.db.get_lock_status([idea_id])
             if status.get(idea_id, 0): return
 
         if target_type == 'bookmark': self.db.set_favorite(idea_id, True)
         elif target_type == 'trash': self.db.set_deleted(idea_id, True)
-        elif target_type == 'uncategorized': 
+        elif target_type == 'uncategorized':
             self.db.move_category(idea_id, None)
-        elif target_type == 'partition': 
+        elif target_type == 'partition':
             self.db.move_category(idea_id, cat_id)
             if cat_id is not None:
                 recent_cats = load_setting('recent_categories', [])
