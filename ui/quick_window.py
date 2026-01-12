@@ -955,7 +955,7 @@ class QuickWindow(QWidget):
         return areas
 
     def _set_cursor_shape(self, areas):
-        if not areas: self.setCursor(Qt.ArrowCursor); return
+        if not areas: self.unsetCursor(); return
         if 'left' in areas and 'top' in areas: self.setCursor(Qt.SizeFDiagCursor)
         elif 'right' in areas and 'bottom' in areas: self.setCursor(Qt.SizeFDiagCursor)
         elif 'left' in areas and 'bottom' in areas: self.setCursor(Qt.SizeBDiagCursor)
@@ -1022,7 +1022,7 @@ class QuickWindow(QWidget):
                 event.accept()
 
     def mouseReleaseEvent(self, event):
-        self.m_drag = False; self.resize_area = None; self.setCursor(Qt.ArrowCursor)
+        self.m_drag = False; self.resize_area = None; self.unsetCursor()
 
     def showEvent(self, event):
         if not self.my_hwnd and user32: self.my_hwnd = int(self.winId())
