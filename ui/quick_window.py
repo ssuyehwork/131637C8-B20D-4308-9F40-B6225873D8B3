@@ -471,17 +471,17 @@ class QuickWindow(QWidget):
         self.partition_tree.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.partition_tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         
-        # 安装事件过滤器
-        self.list_widget.installEventFilter(self)
-        self.system_tree.installEventFilter(self)
-        self.partition_tree.installEventFilter(self)
-        self.splitter.handle(1).installEventFilter(self)
-
         self.right_sidebar_layout.addWidget(self.system_tree)
         self.right_sidebar_layout.addWidget(self.partition_tree)
         
         self.splitter.addWidget(self.list_widget)
         self.splitter.addWidget(self.right_sidebar_widget)
+
+        # 安装事件过滤器
+        self.list_widget.installEventFilter(self)
+        self.system_tree.installEventFilter(self)
+        self.partition_tree.installEventFilter(self)
+        self.splitter.handle(1).installEventFilter(self)
         self.splitter.setStretchFactor(0, 1)
         self.splitter.setStretchFactor(1, 0)
         self.splitter.setSizes([550, 150])
@@ -889,6 +889,18 @@ class QuickWindow(QWidget):
         save_setting("quick_window_pinned", self.btn_stay_top.isChecked())
 
     def closeEvent(self, event):
+        # 卸载事件过滤器以防止崩溃
+        try:
+            self.list_widget.removeEventFilter(self)
+            self.system_tree.removeEventFilter(self)
+            self.partition_tree.removeEventFilter(self)
+            if self.splitter.handle(1):
+                self.splitter.handle(1).removeEventFilter(self)
+        except RuntimeError:
+            # 在关闭过程中，子控件可能已被销毁，这会引发 RuntimeError。
+            # 我们可以安全地忽略这个错误。
+            pass
+
         self.save_state()
         self.hide()
         event.ignore()
@@ -896,8 +908,8 @@ class QuickWindow(QWidget):
     def eventFilter(self, obj, event):
         if obj in [self.list_widget, self.system_tree, self.partition_tree, self.splitter.handle(1)]:
             if event.type() == QEvent.MouseMove:
-                if not self.m_drag and not self.resize_area:
-                    self.mouseMoveEvent(event)
+                # 直接将事件转发给主窗口的 mouseMoveEvent
+                self.mouseMoveEvent(event)
                 return False
         return super().eventFilter(obj, event)
 
@@ -947,11 +959,15 @@ class QuickWindow(QWidget):
             event.accept()
 
     def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.NoButton:
-            self._set_cursor_shape(self._get_resize_area(event.pos()))
-            event.accept()
+        # 无论鼠标左键是否按下，都应该先更新光标形状
+        if not self.m_drag and not self.resize_area:
+             self._set_cursor_shape(self._get_resize_area(event.pos()))
+
+        # 如果鼠标左键没有按下，则不执行拖动或缩放逻辑
+        if not event.buttons() & Qt.LeftButton:
             return
 
+        # --- 以下为原有的拖动和缩放逻辑 ---
         if event.buttons() == Qt.LeftButton:
             if self.resize_area:
                 delta = event.globalPos() - self.resize_start_pos
