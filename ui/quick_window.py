@@ -309,8 +309,6 @@ class QuickWindow(QWidget):
         self.m_drag = False
         self.m_DragPosition = QPoint()
         self.resize_area = None
-        self.resize_start_pos = None
-        self.resize_start_geometry = None
         self._is_pinned = False
         
         # [分页] 初始化状态
@@ -485,7 +483,6 @@ class QuickWindow(QWidget):
         self.partition_status_label = QLabel("当前分区: 全部数据")
         self.partition_status_label.setObjectName("PartitionStatusLabel")
         self.partition_status_label.setStyleSheet("font-size: 11px; color: #888; padding-left: 2px;")
-        self.partition_status_label.setFixedHeight(32)
         self.left_layout.addWidget(self.partition_status_label)
         self.partition_status_label.hide()
 
@@ -921,56 +918,35 @@ class QuickWindow(QWidget):
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             areas = self._get_resize_area(event.pos())
-            if areas:
-                self.resize_area = areas
-                self.resize_start_pos = event.globalPos()
-                self.resize_start_geometry = self.geometry()
-                self.m_drag = False
-            else:
-                self.resize_area = None
-                self.m_drag = True
-                self.m_DragPosition = event.globalPos() - self.pos()
+            if areas: self.resize_area = areas; self.m_drag = False
+            else: self.resize_area = None; self.m_drag = True; self.m_DragPosition = event.globalPos() - self.pos()
             event.accept()
 
     def mouseMoveEvent(self, event):
         if event.buttons() == Qt.NoButton:
             self._set_cursor_shape(self._get_resize_area(event.pos()))
-            event.accept()
-            return
+            event.accept(); return
 
         if event.buttons() == Qt.LeftButton:
             if self.resize_area:
-                delta = event.globalPos() - self.resize_start_pos
-                start_rect = self.resize_start_geometry
-
-                x, y, w, h = start_rect.x(), start_rect.y(), start_rect.width(), start_rect.height()
-                min_w, min_h = 100, 100
+                global_pos = event.globalPos()
+                rect = self.geometry()
 
                 if 'left' in self.resize_area:
-                    new_x = start_rect.left() + delta.x()
-                    new_w = start_rect.right() - new_x
-                    if new_w > min_w:
-                        x = new_x
-                        w = new_w
-
-                if 'right' in self.resize_area:
-                    new_w = start_rect.width() + delta.x()
-                    if new_w > min_w:
-                        w = new_w
+                    new_w = rect.right() - global_pos.x()
+                    if new_w > 100: rect.setLeft(global_pos.x())
+                elif 'right' in self.resize_area:
+                    new_w = global_pos.x() - rect.left()
+                    if new_w > 100: rect.setWidth(new_w)
 
                 if 'top' in self.resize_area:
-                    new_y = start_rect.top() + delta.y()
-                    new_h = start_rect.bottom() - new_y
-                    if new_h > min_h:
-                        y = new_y
-                        h = new_h
+                    new_h = rect.bottom() - global_pos.y()
+                    if new_h > 100: rect.setTop(global_pos.y())
+                elif 'bottom' in self.resize_area:
+                    new_h = global_pos.y() - rect.top()
+                    if new_h > 100: rect.setHeight(new_h)
                 
-                if 'bottom' in self.resize_area:
-                    new_h = start_rect.height() + delta.y()
-                    if new_h > min_h:
-                        h = new_h
-
-                self.setGeometry(x, y, w, h)
+                self.setGeometry(rect)
                 event.accept()
             elif self.m_drag:
                 self.move(event.globalPos() - self.m_DragPosition)
@@ -1024,57 +1000,61 @@ class QuickWindow(QWidget):
 
     # [核心修改] 动态主题：奇/偶行都使用分类颜色，只是深浅不同
     def _apply_list_theme(self, color_hex):
-        # 统一的选中样式：左侧5px白边，背景为悬浮色，文字颜色不变
-        # 为了防止文字因边框而移动，将左内边距从6px减少到1px
-        selected_style = """
-            QListWidget::item:selected {
-                background-color: #333333;
-                color: #cccccc;
-                border-left: 5px solid white;
-                padding-left: 1px;
-            }
-        """
-
         if color_hex:
             c = QColor(color_hex)
+
+            # 偶数行（Base Background）：分类颜色的深色版 (350% darker)
             bg_color = c.darker(350).name()
+
+            # 奇数行（Alternate Background）：分类颜色的更深色版 (450% darker) -> 也就是"调暗一点"
             alt_bg_color = c.darker(450).name()
             
+            # 选中行：分类颜色的稍亮版 (110% darker，接近原色)
+            sel_color = c.darker(110).name()
+
             style = f"""
                 QListWidget {{
                     border: none;
                     outline: none;
+                    /* 偶数行背景 */
                     background-color: {bg_color};
+                    /* 奇数行背景 (交替色) - 更暗一点 */
                     alternate-background-color: {alt_bg_color};
                 }}
                 QListWidget::item {{
                     padding: 6px;
                     border: none;
-                    border-bottom: 1px solid rgba(0,0,0, 0.3);
+                    border-bottom: 1px solid rgba(0,0,0, 0.3); /* 增加微弱的分割线提升层次感 */
                 }}
-                {selected_style}
+                QListWidget::item:selected {{
+                    background-color: {sel_color};
+                    color: #FFFFFF;
+                }}
                 QListWidget::item:hover {{
                     background-color: rgba(255, 255, 255, 0.1);
                 }}
             """
         else:
-            # 默认深色主题
-            style = f"""
-                QListWidget {{
+            # 默认深色主题 (未选中分类时)
+            style = """
+                QListWidget {
                     border: none;
                     outline: none;
                     background-color: #1e1e1e;
                     alternate-background-color: #151515;
-                }}
-                QListWidget::item {{
+                }
+                QListWidget::item {
                     padding: 6px;
                     border: none;
                     border-bottom: 1px solid #2A2A2A;
-                }}
-                {selected_style}
-                QListWidget::item:hover {{
+                }
+                QListWidget::item:selected {
+                    background-color: #4a90e2;
+                    color: #FFFFFF;
+                }
+                QListWidget::item:hover {
                     background-color: #333333;
-                }}
+                }
             """
         self.list_widget.setStyleSheet(style)
 
