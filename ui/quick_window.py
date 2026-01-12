@@ -309,6 +309,8 @@ class QuickWindow(QWidget):
         self.m_drag = False
         self.m_DragPosition = QPoint()
         self.resize_area = None
+        self.resize_start_pos = None
+        self.resize_start_geometry = None
         self._is_pinned = False
         
         # [分页] 初始化状态
@@ -483,6 +485,7 @@ class QuickWindow(QWidget):
         self.partition_status_label = QLabel("当前分区: 全部数据")
         self.partition_status_label.setObjectName("PartitionStatusLabel")
         self.partition_status_label.setStyleSheet("font-size: 11px; color: #888; padding-left: 2px;")
+        self.partition_status_label.setFixedHeight(32)
         self.left_layout.addWidget(self.partition_status_label)
         self.partition_status_label.hide()
 
@@ -918,35 +921,56 @@ class QuickWindow(QWidget):
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             areas = self._get_resize_area(event.pos())
-            if areas: self.resize_area = areas; self.m_drag = False
-            else: self.resize_area = None; self.m_drag = True; self.m_DragPosition = event.globalPos() - self.pos()
+            if areas:
+                self.resize_area = areas
+                self.resize_start_pos = event.globalPos()
+                self.resize_start_geometry = self.geometry()
+                self.m_drag = False
+            else:
+                self.resize_area = None
+                self.m_drag = True
+                self.m_DragPosition = event.globalPos() - self.pos()
             event.accept()
 
     def mouseMoveEvent(self, event):
         if event.buttons() == Qt.NoButton:
             self._set_cursor_shape(self._get_resize_area(event.pos()))
-            event.accept(); return
-        
+            event.accept()
+            return
+
         if event.buttons() == Qt.LeftButton:
             if self.resize_area:
-                global_pos = event.globalPos()
-                rect = self.geometry()
+                delta = event.globalPos() - self.resize_start_pos
+                start_rect = self.resize_start_geometry
                 
+                x, y, w, h = start_rect.x(), start_rect.y(), start_rect.width(), start_rect.height()
+                min_w, min_h = 100, 100
+
                 if 'left' in self.resize_area:
-                    new_w = rect.right() - global_pos.x()
-                    if new_w > 100: rect.setLeft(global_pos.x())
-                elif 'right' in self.resize_area:
-                    new_w = global_pos.x() - rect.left()
-                    if new_w > 100: rect.setWidth(new_w)
-                    
-                if 'top' in self.resize_area:
-                    new_h = rect.bottom() - global_pos.y()
-                    if new_h > 100: rect.setTop(global_pos.y())
-                elif 'bottom' in self.resize_area:
-                    new_h = global_pos.y() - rect.top()
-                    if new_h > 100: rect.setHeight(new_h)
+                    new_x = start_rect.left() + delta.x()
+                    new_w = start_rect.right() - new_x
+                    if new_w > min_w:
+                        x = new_x
+                        w = new_w
                 
-                self.setGeometry(rect)
+                if 'right' in self.resize_area:
+                    new_w = start_rect.width() + delta.x()
+                    if new_w > min_w:
+                        w = new_w
+                
+                if 'top' in self.resize_area:
+                    new_y = start_rect.top() + delta.y()
+                    new_h = start_rect.bottom() - new_y
+                    if new_h > min_h:
+                        y = new_y
+                        h = new_h
+                
+                if 'bottom' in self.resize_area:
+                    new_h = start_rect.height() + delta.y()
+                    if new_h > min_h:
+                        h = new_h
+
+                self.setGeometry(x, y, w, h)
                 event.accept()
             elif self.m_drag:
                 self.move(event.globalPos() - self.m_DragPosition)
